@@ -1,0 +1,13 @@
+// backend/src/routes/index.js
+// 모든 라우터가 모이는곳
+
+const express = require("express");
+const router = express.Router();
+
+// goods 파일 안에 있는 모든 route들 가져오기
+// 여기까지의 경로 - /api/goods
+router.use("/goods", require("./goods.route"));
+
+
+
+module.exports = router;
