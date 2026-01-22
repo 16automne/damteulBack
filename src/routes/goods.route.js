@@ -3,14 +3,7 @@
 
 const express = require("express");
 const router = express.Router();
-// const goods = require("../controllers/goods.controller");
 
-// 예시
-// router.get("/", goods.list);            // GET /api/goods
-// router.post("/", goods.create);         // POST /api/goods
-// router.get("/:goodsId", goods.detail);  // GET /api/goods/:goodsId
-// router.put("/:goodsId", goods.update);  // PUT /api/goods/:goodsId
-// router.delete("/:goodsId", goods.remove); // DELETE /api/goods/:goodsId
 
 
 module.exports = router;

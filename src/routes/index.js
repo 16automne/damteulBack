@@ -7,6 +7,7 @@ const router = express.Router();
 // goods 파일 안에 있는 모든 route들 가져오기
 // 여기까지의 경로 - /api/goods
 router.use("/goods", require("./goods.route"));
+router.use("/user", require("./user.route"));
 
 
 
