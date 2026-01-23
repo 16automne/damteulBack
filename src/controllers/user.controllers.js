@@ -1,51 +1,90 @@
-// /controllers/userController.js (예시 경로)
+// user관련 작업
 const connection = require("../db");
+const userJwt = require('jsonwebtoken');
+const SECRET_KEY = 'user1234';
 
+// 회원가입
+// /api/user/register
 exports.register = (req, res) => {
   const { user_name, user_nickname, user_phone } = req.body;
-  const errors = {}; // 에러를 담을 객체
 
-  // 1. 서버 유효성 검사 (필수 값)
-  if (!user_name) errors.user_name = '이름을 입력해주세요.';
-  if (!user_nickname) errors.user_nickname = '닉네임을 입력해주세요.';
-  if (!user_phone) errors.user_phone = '전화번호를 입력해주세요.';
-
-  if (Object.keys(errors).length > 0) {
-    return res.status(400).json({ code: 'VALIDATION_ERROR', errors });
+  // 1. 서버 유효성 검사
+  if (!user_name || !user_nickname || !user_phone) {
+    return res.status(400).json({
+      code: "VALIDATION_ERROR",
+      message: "필수 값이 누락되었습니다.",
+    });
   }
 
-  // 2. 중복 체크 (OR 조건으로 한 번에 조회)
-  const checkQuery = `
-    SELECT user_phone, user_nickname 
-    FROM damteul_users 
+  // 2. 중복 체크 (전화번호 OR 닉네임)
+  const checkRes = `
+    SELECT user_phone, user_nickname
+    FROM damteul_users
     WHERE user_phone = ? OR user_nickname = ?
   `;
 
-  connection.query(checkQuery, [user_phone, user_nickname], (err, results) => {
-    if (err) {
-      return res.status(500).json({ code: 'DB_ERROR', message: 'DB 오류 발생' });
-    }
-
-    // 중복 검사 로직
-    if (results.length > 0) {
-      results.forEach(row => {
-        if (row.user_phone === user_phone) errors.user_phone = '이미 사용 중인 전화번호입니다.';
-        if (row.user_nickname === user_nickname) errors.user_nickname = '이미 사용 중인 닉네임입니다.';
-      });
-    }
-
-    // 에러가 하나라도 있으면 즉시 반환 (중복 포함)
-    if (Object.keys(errors).length > 0) {
-      return res.status(409).json({ code: 'DUPLICATE_ERROR', errors });
-    }
-
-    // 3. 삽입 쿼리
-    const insertQuery = `INSERT INTO damteul_users (user_name, user_nickname, user_phone) VALUES (?, ?, ?)`;
-    connection.query(insertQuery, [user_name, user_nickname, user_phone], (err2) => {
-      if (err2) {
-        return res.status(500).json({ code: 'DB_ERROR', message: '저장 중 오류 발생' });
+  connection.query(
+    checkRes,
+    [user_phone, user_nickname],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({
+          code: "DB_ERROR",
+          message: "DB 오류가 발생했습니다.",
+        });
       }
-      return res.status(201).json({ ok: true });
-    });
-  });
+
+      // ✅ 중복 에러 누적용 객체
+      const errors = {};
+
+      results.forEach((row) => {
+        if (row.user_phone === user_phone) {
+          errors.user_phone = "이미 사용 중인 전화번호입니다.";
+        }
+        if (row.user_nickname === user_nickname) {
+          errors.user_nickname = "이미 사용 중인 닉네임입니다.";
+        }
+      });
+
+      // ✅ 중복이 하나라도 있으면 여기서 종료
+      if (Object.keys(errors).length > 0) {
+        return res.status(409).json({
+          code: "DUPLICATE",
+          errors,
+        });
+      }
+
+      // 3. 중복 없으면 INSERT
+      const insertRes = `
+        INSERT INTO damteul_users (user_name, user_nickname, user_phone)
+        VALUES (?, ?, ?)
+      `;
+
+      connection.query(
+        insertRes,
+        [user_name, user_nickname, user_phone],
+        (err2, result2) => {
+          if (err2) {
+            if (err2.code === "ER_DUP_ENTRY") {
+              return res.status(409).json({
+                code: "DUPLICATE",
+                message: "이미 사용 중인 값이 있습니다.",
+              });
+            }
+            return res.status(500).json({
+              code: "DB_ERROR",
+              message: "회원가입 저장 중 오류가 발생했습니다.",
+            });
+          }
+          const userToken = userJwt.sign({user_nickname:user_nickname}, SECRET_KEY,{
+            expiresIn:'1h'
+          });
+          return res.status(201).json({
+            ok: true,
+            userToken
+          });
+        }
+      );
+    }
+  );
 };
