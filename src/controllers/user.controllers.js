@@ -88,3 +88,61 @@ exports.register = (req, res) => {
     }
   );
 };
+
+
+// 로그인
+// /api/uset/login
+exports.login = (req, res) => {
+  const { user_name, user_phone } = req.body;
+
+  // 1. 서버 유효성 검사
+  if (!user_name || !user_phone) {
+    return res.status(400).json({
+      code: "VALIDATION_ERROR",
+      message: "필수 값이 누락되었습니다.",
+    });
+  }
+
+  // 2. 로그인 체크
+  const checkLogin = `
+    SELECT * FROM damteul_users
+    WHERE user_phone = ?
+  `;
+
+  connection.query(checkLogin,[user_phone], (err, results)=>{
+    if(err){
+      return res.status(500).json({
+        code: "DB_ERROR",
+        message: "DB오류가 발생했습니다.",
+      });
+    }
+
+    // 값이 없는 경우
+    if (results.length === 0){
+      return res.status(401).json({
+        code: "DUPLICATE",
+        message: "해당 회원 정보가 조회되지 않습니다. 다시 시도해주세요."
+      })
+    }
+    const user = results[0];
+
+    // 일치 하지 않을경우
+    if(user_name.trim()!==user.user_name){
+      return res.status(401).json({
+        code: "DUPLICATE",
+        message: "해당 회원 정보가 조회되지 않습니다. 다시 시도해주세요."
+      });
+    }
+
+
+    // 일치시 토큰생성
+    const userToken = userJwt.sign({user_id:user.user_id, user_nickname:user.user_nickname},SECRET_KEY,{
+        expiresIn:'1h'
+    });
+
+    return res.status(200).json({
+      ok:true,
+      userToken
+    });
+  });
+}

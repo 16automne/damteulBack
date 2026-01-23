@@ -7,4 +7,9 @@ const userController = require("../controllers/user.controllers");
 // /api/user/register
 router.post("/register", userController.register);
 
+// 로그인
+// /api/user/login
+router.post("/login", userController.login);
+
+
 module.exports = router;
