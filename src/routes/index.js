@@ -8,7 +8,7 @@ const router = express.Router();
 // 여기까지의 경로 - /api/goods
 router.use("/goods", require("./goods.route"));
 router.use("/user", require("./user.route"));
-
+router.use("/addresses", require('./address.route'));
 
 
 module.exports = router;
