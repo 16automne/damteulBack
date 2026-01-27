@@ -6,10 +6,10 @@ const SECRET_KEY = 'user1234';
 // 회원가입
 // /api/user/register
 exports.register = (req, res) => {
-  const { user_name, user_nickname, user_phone } = req.body;
+  const { user_name, user_nickname, user_phone, address } = req.body;
 
   // 1. 서버 유효성 검사
-  if (!user_name || !user_nickname || !user_phone) {
+  if (!user_name || !user_nickname || !user_phone || !address) {
     return res.status(400).json({
       code: "VALIDATION_ERROR",
       message: "필수 값이 누락되었습니다.",
@@ -56,13 +56,13 @@ exports.register = (req, res) => {
 
       // 3. 중복 없으면 INSERT
       const insertRes = `
-        INSERT INTO damteul_users (user_name, user_nickname, user_phone)
-        VALUES (?, ?, ?)
+        INSERT INTO damteul_users (user_name, user_nickname, user_phone, address)
+        VALUES (?, ?, ?, ?)
       `;
 
       connection.query(
         insertRes,
-        [user_name, user_nickname, user_phone],
+        [user_name, user_nickname, user_phone, address],
         (err2, result2) => {
           if (err2) {
             if (err2.code === "ER_DUP_ENTRY") {
