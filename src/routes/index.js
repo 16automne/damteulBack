@@ -10,5 +10,7 @@ router.use("/goods", require("./goods.route"));
 router.use("/user", require("./user.route"));
 router.use("/addresses", require('./address.route'));
 
+router.use("/admin",require("./admin.route"));
+
 
 module.exports = router;
