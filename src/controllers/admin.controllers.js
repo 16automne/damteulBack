@@ -1,5 +1,7 @@
 const connection = require("../db");
 
+// 대쉬보드 정보가져오기
+// /api/admin/dashboard
 exports.dashboard = (req, res) => {
   // 1) KPI (오늘/이번달 가입/신고/게시물)
   const kpiQuery = `
@@ -137,5 +139,30 @@ exports.dashboard = (req, res) => {
         return res.json({ kpiData, summaryData, eventsData });
       });
     });
+  });
+};
+
+
+// 유저정보 가져오기
+//api/admin/users
+exports.users = (req, res)=>{
+  const getUsersInfo = `
+    SELECT user_id, user_nickname, level_code, reported_count, status, created_at From damteul_users
+  `;
+  connection.query(getUsersInfo,(err,result)=>{
+    if(err){
+      console.error("users 조회 오류: ", err);
+      return res.status(500).json({
+        success:false,
+        message: "사용자 정보를 불러오는 중 오류가 발생했습니다.",
+        error: err.message, //개발용
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "사용자 목록 조회 성공",
+      users: result, // 결과값
+    })
   });
 };
