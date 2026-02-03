@@ -8,5 +8,10 @@ const adminController = require("../controllers/admin.controllers");
 // q: 검색어
 // limit: 최대 몇개까지 줄지 (기본 10)
 router.get("/dashboard", adminController.dashboard);
-router.get("users", adminController.users);
+router.get("/users", adminController.users);
+
+// adminUsers
+router.get("/users/:user_id", adminController.getUserDetail);
+router.delete("/users/:id", adminController.delete);
+
 module.exports = router;

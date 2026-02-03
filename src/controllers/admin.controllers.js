@@ -166,3 +166,93 @@ exports.users = (req, res)=>{
     })
   });
 };
+
+
+// 유저 상세
+// 1. 유저 상세 조회
+// /api/admin/users/:user_id
+exports.getUserDetail = (req, res) => {
+  const { user_id } = req.params;
+
+  if (!user_id) {
+    return res.status(400).json({
+      success: false,
+      message: "user_id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    SELECT
+      user_id,
+      user_nickname,
+      level_code,
+      reported_count,
+      status,
+      created_at
+    FROM damteul_users
+    WHERE user_id = ?
+    LIMIT 1
+  `;
+
+  connection.query(sql, [user_id], (err, rows) => {
+    if (err) {
+      console.error("유저 상세 조회 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "유저 상세 조회 중 서버 오류",
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "해당 user_id 유저를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: rows[0],
+    });
+  });
+};
+
+// 삭제
+exports.delete = (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    DELETE FROM damteul_users
+    WHERE user_id = ?
+  `;
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("삭제 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "삭제 중 서버 오류",
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "삭제할 정보를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "삭제 완료",
+      user_id,
+    });
+  });
+};
