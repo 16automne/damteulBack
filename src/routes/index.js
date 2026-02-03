@@ -9,6 +9,7 @@ const router = express.Router();
 router.use("/goods", require("./goods.route"));
 router.use("/user", require("./user.route"));
 router.use("/addresses", require('./address.route'));
+router.use("/nanum", require("./nanum.route"));
 
 
 module.exports = router;
