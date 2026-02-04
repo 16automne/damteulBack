@@ -14,12 +14,19 @@ router.get("/users", adminController.users);
 router.get("/users/:user_id", adminController.getUserDetail);
 router.delete("/users/:id", adminController.userDelete);
 
-// adminPosts
-router.get("/posts", adminController.posts);
-router.get("/:cate/:id", adminController.getPostDetail);
-router.delete("/:cate/:id", adminController.postDelete);
+
+
+
 
 // adminReports
+router.get("/reports", adminController.reports);
+router.get("/reports/:id", adminController.getReportsDetail);
+router.patch("/reports/:id", adminController.updateReportsDetail);
+router.delete("/reports/:id", adminController.reportDelete);
 
+// adminPosts (젤 하단에 위치 시킬것)
+router.get("/posts", adminController.posts);
+router.delete("/:url/:id", adminController.postDelete);
+router.get("/:cate/:id", adminController.getPostDetail);
 
 module.exports = router;

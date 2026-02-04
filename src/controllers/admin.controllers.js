@@ -155,7 +155,7 @@ exports.dashboard = (req, res) => {
 //api/admin/users
 exports.users = (req, res)=>{
   const getUsersInfo = `
-    SELECT user_id, user_nickname, level_code, reported_count, status, created_at From damteul_users
+    SELECT user_id, user_nickname, level_code, reported_count, status, created_at FROM damteul_users
   `;
   connection.query(getUsersInfo,(err,result)=>{
     if(err){
@@ -384,8 +384,325 @@ exports.getPostDetail = (req, res) => {
   });
 };
 
-// 유저 삭제
+// 게시글 삭제
 exports.postDelete = (req, res) => {
+  const { url, id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = url==='goods'?`
+    DELETE FROM dam_goods_posts
+    WHERE goods_id = ?
+  `:
+  `DELETE FROM dam_nanum_posts
+    WHERE nanum_id = ?`
+  ;
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("삭제 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "게시물 삭제 중 서버 오류",
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "삭제할 게시물을 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "게시물 삭제 완료",
+      id,
+    });
+  });
+};
+
+
+// 3. 신고정보 가져오기
+exports.reports = (req, res) =>{
+  const getReportsInfo = `
+    SELECT 
+      r.report_id AS id,
+      u_reported.user_nickname AS reported,
+      u_reporter.user_nickname AS reporter,
+      r.target_type,
+      CASE r.target_type
+        WHEN 0 THEN '중고거래'
+        WHEN 1 THEN '커뮤니티'
+        ELSE '기타'
+      END AS category,
+      CASE r.status
+        WHEN 0 THEN '처리중'
+        WHEN 1 THEN '완료'
+        ELSE '기타'
+      END AS status,
+      DATE_FORMAT(r.created_at, '%Y-%m-%d') AS created_at
+    FROM dam_reports r
+    JOIN damteul_users u_reported ON u_reported.user_id = r.writer_user_id
+    JOIN damteul_users u_reporter ON u_reporter.user_id = r.reporter_user_id
+    ORDER BY r.report_id DESC;
+  `;
+  connection.query(getReportsInfo,(err,result)=>{
+    if(err){
+      console.error("reports 조회 오류: ", err);
+      return res.status(500).json({
+        success:false,
+        message: "신고 정보를 불러오는 중 오류가 발생했습니다.",
+        error: err.message, //개발용
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "신고 목록 조회 성공",
+      reports: result, // 결과값
+    })
+  });
+}
+
+// 신고정보 상세
+exports.getReportsDetail = (req, res) =>{
+  const {id} = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    SELECT 
+      r.report_id AS id,
+      u_reported.user_nickname AS reported,
+      u_reporter.user_nickname AS reporter,
+      r.target_type,
+      CASE r.target_type
+        WHEN 0 THEN '중고거래'
+        WHEN 1 THEN '커뮤니티'
+        ELSE '기타'
+      END AS category,
+      CASE r.processing_result
+        WHEN 0 THEN '무효'
+        WHEN 1 THEN '경고'
+        WHEN 2 THEN '정지'
+        ELSE '처리중'
+      END AS processing_result,
+      CASE r.reason
+        WHEN 0 THEN '상품 상태 설명과 다릅니다.'
+        WHEN 1 THEN '도배성 게시글 같습니다.'
+        WHEN 2 THEN '욕설/비방 표현이 있어요.'
+        WHEN 3 THEN '가격이 지나치게 비싸요(사기 의심).'
+        WHEN 4 THEN '허위 매물로 의심됩니다.'
+        END AS reason,
+      DATE_FORMAT(r.created_at, '%Y-%m-%d') AS created_at
+    FROM dam_reports r
+    JOIN damteul_users u_reported ON u_reported.user_id = r.writer_user_id
+    JOIN damteul_users u_reporter ON u_reporter.user_id = r.reporter_user_id
+    WHERE r.report_id = ?
+    LIMIT 1
+  `;
+
+  connection.query(sql, [id], (err, rows) => {
+    if (err) {
+      console.error("신고 상세 조회 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "신고 상세 조회 중 서버 오류",
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "해당 report_id 유저를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      report: rows[0],
+    });
+  });
+}
+
+// 상태 변경
+exports.updateReportsDetail = (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body; // processing_result로 저장될 값
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  // pool에서 커넥션 1개 빌리기
+  connection.getConnection((connErr, conn) => {
+    if (connErr) {
+      console.error("❌ getConnection 에러:", connErr);
+      return res.status(500).json({
+        success: false,
+        message: "서버 오류(DB 커넥션 획득 실패)",
+      });
+    }
+
+    // 트랜잭션 시작
+    conn.beginTransaction((txErr) => {
+      if (txErr) {
+        console.error("❌ beginTransaction 에러:", txErr);
+        conn.release();
+        return res.status(500).json({
+          success: false,
+          message: "서버 오류(트랜잭션 시작 실패)",
+        });
+      }
+
+      // 1) 현재 report 조회 + 잠금
+      const selectSql = `
+        SELECT report_id, writer_user_id, processing_result
+        FROM dam_reports
+        WHERE report_id = ?
+        FOR UPDATE
+      `;
+
+      conn.query(selectSql, [id], (selErr, rows) => {
+        if (selErr) {
+          console.error("❌ 조회 SQL 에러:", selErr);
+          return conn.rollback(() => {
+            conn.release();
+            res.status(500).json({ success: false, message: "서버 오류(조회 실패)" });
+          });
+        }
+
+        if (!rows || rows.length === 0) {
+          return conn.rollback(() => {
+            conn.release();
+            res.status(404).json({
+              success: false,
+              message: "수정할 신고 정보를 찾을 수 없습니다.",
+            });
+          });
+        }
+
+        const report = rows[0];
+        const writerUserId = report.writer_user_id;
+        const prevProcessingResult = report.processing_result;
+
+        // 2) report 업데이트
+        // - processing_result = ?
+        // - processing_result가 NULL이 아니면 dam_reports.status = 1로 세팅
+        const updateReportSql = `
+          UPDATE dam_reports
+          SET
+            processing_result = ?,
+            status = CASE WHEN ? IS NULL THEN status ELSE 1 END
+          WHERE report_id = ?
+        `;
+
+        conn.query(updateReportSql, [status, status, id], (updErr, updResult) => {
+          if (updErr) {
+            console.error("❌ 수정 SQL 에러:", updErr);
+            return conn.rollback(() => {
+              conn.release();
+              res.status(500).json({
+                success: false,
+                message: "신고 수정 중 서버 오류",
+              });
+            });
+          }
+
+          if (updResult.affectedRows === 0) {
+            return conn.rollback(() => {
+              conn.release();
+              res.status(404).json({
+                success: false,
+                message: "수정할 신고 정보를 찾을 수 없습니다.",
+              });
+            });
+          }
+
+          // 3) reported_count 증가 조건:
+          // - 이번에 들어온 status(=processing_result)가 1
+          // - 이전 processing_result가 NULL (중복 증가 방지)
+          const shouldInc = Number(status) === 1 && prevProcessingResult === null;
+
+          const commitAndReturn = (reported_count_increased) => {
+            conn.commit((cErr) => {
+              if (cErr) {
+                console.error("❌ commit 에러:", cErr);
+                return conn.rollback(() => {
+                  conn.release();
+                  res.status(500).json({ success: false, message: "서버 오류(커밋 실패)" });
+                });
+              }
+
+              conn.release();
+              return res.status(200).json({
+                success: true,
+                message: "신고 상태 수정 완료",
+                id,
+                reported_count_increased,
+              });
+            });
+          };
+
+          if (!shouldInc) {
+            return commitAndReturn(false);
+          }
+
+          // reported_count는 NULL일 수 있으니 COALESCE 처리
+          const incUserSql = `
+            UPDATE damteul_users
+            SET reported_count = COALESCE(reported_count, 0) + 1
+            WHERE user_id = ?
+          `;
+
+          conn.query(incUserSql, [writerUserId], (incErr, incResult) => {
+            if (incErr) {
+              console.error("❌ reported_count 증가 에러:", incErr);
+              return conn.rollback(() => {
+                conn.release();
+                res.status(500).json({
+                  success: false,
+                  message: "서버 오류(유저 신고 카운트 증가 실패)",
+                });
+              });
+            }
+
+            if (incResult.affectedRows === 0) {
+              return conn.rollback(() => {
+                conn.release();
+                res.status(404).json({
+                  success: false,
+                  message: "신고 대상 유저를 찾을 수 없습니다.",
+                });
+              });
+            }
+
+            return commitAndReturn(true);
+          });
+        });
+      });
+    });
+  });
+};
+
+
+
+// 신고정보 삭제
+exports.reportDelete = (req, res) => {
   const { id } = req.params;
 
   if (!id) {
@@ -396,8 +713,8 @@ exports.postDelete = (req, res) => {
   }
 
   const sql = `
-    DELETE FROM damteul_users
-    WHERE user_id = ?
+    DELETE FROM dam_reports
+    WHERE report_id = ?
   `;
 
   connection.query(sql, [id], (err, result) => {
@@ -405,20 +722,20 @@ exports.postDelete = (req, res) => {
       console.error("삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "유저 삭제 중 서버 오류",
+        message: "신고 삭제 중 서버 오류",
       });
     }
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
-        message: "삭제할 유저를 찾을 수 없습니다.",
+        message: "삭제할 신고 정보를 찾을 수 없습니다.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: "유저 삭제 완료",
+      message: "신고 정보 삭제 완료",
       id,
     });
   });

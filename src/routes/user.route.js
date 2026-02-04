@@ -11,7 +11,5 @@ router.post("/register", userController.register);
 // /api/user/login
 router.post("/login", userController.login);
 
-db.post('/goods/update',(req,res)=>{
 
-});
 module.exports = router;
