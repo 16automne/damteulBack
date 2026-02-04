@@ -699,8 +699,6 @@ exports.updateReportsDetail = (req, res) => {
   });
 };
 
-
-
 // 신고정보 삭제
 exports.reportDelete = (req, res) => {
   const { id } = req.params;
@@ -740,3 +738,176 @@ exports.reportDelete = (req, res) => {
     });
   });
 };
+
+
+// 4. 거래정보 가져오기
+exports.trades = (req, res) => {
+  const getTradesInfo = `
+    SELECT
+      t.tx_id AS id,
+      g.title AS product,
+      u_buyer.user_nickname AS buyer,
+      u_seller.user_nickname AS seller,
+      CASE t.tx_type
+        WHEN 0 THEN '직거래'
+        WHEN 1 THEN '택배'
+        ELSE '기타'
+      END AS method,
+      t.final_price AS price,
+      DATE_FORMAT(t.created_at, '%Y-%m-%d') AS created_at
+    FROM dam_transactions t
+    JOIN dam_goods_posts g ON g.goods_id = t.goods_id
+    JOIN damteul_users u_buyer ON u_buyer.user_id = t.buyer_id
+    JOIN damteul_users u_seller ON u_seller.user_id = t.seller_id
+    ORDER BY t.tx_id DESC;
+  `;
+
+  connection.query(getTradesInfo,(err,result) => {
+    if(err){
+      console.error("trades 조회 오류: ", err);
+      return res.status(500).json({
+        success:false,
+        message: "거래 정보를 불러오는 중 오류가 발생했습니다.",
+        error: err.message, //개발용
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "거래 목록 조회 성공",
+      trades: result, // 결과값
+    })
+  })
+};
+
+// 거래상세
+exports.getTradesDeatail = (req, res) => {
+  const {id} = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql =`
+    SELECT
+      t.tx_id AS id,
+      g.title AS product,
+      g.content AS content,
+      u_buyer.user_nickname AS buyer,
+      u_seller.user_nickname AS seller,
+      CASE t.tx_type
+        WHEN 0 THEN '직거래'
+        WHEN 1 THEN '택배'
+        ELSE '기타'
+      END AS method,
+      t.final_price AS price,
+      DATE_FORMAT(t.created_at, '%Y-%m-%d') AS created_at
+    FROM dam_transactions t
+    JOIN dam_goods_posts g ON g.goods_id = t.goods_id
+    JOIN damteul_users u_buyer ON u_buyer.user_id = t.buyer_id
+    JOIN damteul_users u_seller ON u_seller.user_id = t.seller_id
+    WHERE t.tx_id = ?
+    LIMIT 1
+    `;
+  connection.query(sql, [id], (err, rows) => {
+    if (err) {
+      console.error("거래 상세 조회 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "거래 상세 조회 중 서버 오류",
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "해당 tx_id 유저를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      trade: rows[0],
+    });
+  });
+}
+
+// 거래정보 삭제
+exports.tradeDelete = (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    DELETE FROM dam_transactions
+    WHERE tx_id = ?
+  `;
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("삭제 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "거래 삭제 중 서버 오류",
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "삭제할 거래 정보를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "거래 정보 삭제 완료",
+      id,
+    });
+  });
+};
+
+// 5.
+
+
+// 6. 커뮤니티 정보가져오기
+exports.community = (req,res) => {
+  const getCommunityInfo = `
+    SELECT
+    c.post_id AS id,
+    u.user_nickname AS user,
+    c.title,
+    CASE c.cate
+      WHEN 0 THEN '카테고리 미정'
+      ELSE '기타'
+    END AS category,
+    DATE_FORMAT(c.created_at, '%Y-%m-%d') AS created_at
+    FROM dam_community_posts c
+    JOIN damteul_users u ON u.user_id = c.user_id
+    ORDER BY c.post_id DESC;
+  `;
+  connection.query(getCommunityInfo ,(err,result) => {
+    if(err){
+      console.error("community 조회 오류: ", err);
+      return res.status(500).json({
+        success:false,
+        message: "커뮤니티 정보를 불러오는 중 오류가 발생했습니다.",
+        error: err.message, //개발용
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "커뮤니티 목록 조회 성공",
+      community: result, // 결과값
+    })
+  })
+}

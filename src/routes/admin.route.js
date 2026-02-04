@@ -14,15 +14,19 @@ router.get("/users", adminController.users);
 router.get("/users/:user_id", adminController.getUserDetail);
 router.delete("/users/:id", adminController.userDelete);
 
-
-
-
-
 // adminReports
 router.get("/reports", adminController.reports);
 router.get("/reports/:id", adminController.getReportsDetail);
 router.patch("/reports/:id", adminController.updateReportsDetail);
 router.delete("/reports/:id", adminController.reportDelete);
+
+// adminTrades
+router.get("/trades", adminController.trades);
+router.get("/trades/:id", adminController.getTradesDeatail);
+router.delete("/trades/:id", adminController.tradeDelete);
+
+// admainCommu
+router.get("/community", adminController.community);
 
 // adminPosts (젤 하단에 위치 시킬것)
 router.get("/posts", adminController.posts);
