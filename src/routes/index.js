@@ -12,5 +12,10 @@ router.use("/addresses", require('./address.route'));
 
 router.use("/admin",require("./admin.route"));
 
+// 커뮤니티
+// 경로 - /api/community
+router.use("/community", require("./community.route"));
+
+
 
 module.exports = router;

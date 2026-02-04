@@ -10,11 +10,13 @@ exports.dashboard = (req, res) => {
       (SELECT COUNT(*) FROM dam_reports WHERE DATE(created_at) = CURDATE()) AS today_reports,
       (SELECT COUNT(*) FROM dam_goods_posts WHERE DATE(created_at) = CURDATE()) AS today_goods_posts,
       (SELECT COUNT(*) FROM dam_nanum_posts WHERE DATE(created_at) = CURDATE()) AS today_nanum_posts,
-
+      (SELECT COUNT(*) FROM dam_community_posts WHERE DATE(created_at) = CURDATE()) AS today_community_posts,
+      
       (SELECT COUNT(*) FROM damteul_users WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_users,
       (SELECT COUNT(*) FROM dam_reports WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_reports,
       (SELECT COUNT(*) FROM dam_goods_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_goods_posts,
-      (SELECT COUNT(*) FROM dam_nanum_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_nanum_posts
+      (SELECT COUNT(*) FROM dam_nanum_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_nanum_posts,
+      (SELECT COUNT(*) FROM dam_community_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_community_posts
   `;
 
   // 2) 일자별 요약 (최근 7일)
@@ -55,6 +57,12 @@ exports.dashboard = (req, res) => {
         SELECT DATE(created_at) AS d
         FROM dam_goods_posts
         WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+
+        UNION ALL
+
+        SELECT DATE(created_at) AS d
+        FROM dam_community_posts
+        WHERE created_at >= CURDATE() - INTERVAL 6 DAY
       ) x
       GROUP BY d
     ) p ON p.d = DATE(d.date)
@@ -65,7 +73,7 @@ exports.dashboard = (req, res) => {
   // ✅ 너가 실제 컬럼명으로 수정했다고 했으니, 그 컬럼명 기준으로 유지해줘.
   // 예시: event_id, title, cate, created_at
   const eventsQuery = `
-    SELECT event_id, title, cate, DATE(created_at) AS date
+    SELECT event_id, title, cate,  DATE_FORMAT(created_at, '%Y-%m-%d') AS date
     FROM dam_event_notice
     ORDER BY created_at DESC
     LIMIT 5
@@ -83,8 +91,8 @@ exports.dashboard = (req, res) => {
     }
 
     const k = kpiRows?.[0] || {};
-    const dPosts = (k.today_goods_posts ?? 0) + (k.today_nanum_posts ?? 0);
-    const mPosts = (k.month_goods_posts ?? 0) + (k.month_nanum_posts ?? 0);
+    const dPosts = (k.today_goods_posts ?? 0) + (k.today_nanum_posts ?? 0) + (k.today_community_posts ?? 0);
+    const mPosts = (k.month_goods_posts ?? 0) + (k.month_nanum_posts ?? 0) + (k.month_community_posts ?? 0);
 
     const kpiData = {
       today: {
@@ -132,7 +140,7 @@ exports.dashboard = (req, res) => {
           id: row.event_id,
           title: row.title,
           type: row.cate, // '이벤트' | '공지사항' 등
-          date: String(row.date).slice(0, 10),
+          date: row.date,
         }));
 
         // ✅ 모든 데이터 준비 완료 → 한번에 응답
@@ -143,7 +151,7 @@ exports.dashboard = (req, res) => {
 };
 
 
-// 유저정보 가져오기
+// 1. 유저정보 가져오기
 //api/admin/users
 exports.users = (req, res)=>{
   const getUsersInfo = `
@@ -169,7 +177,7 @@ exports.users = (req, res)=>{
 
 
 // 유저 상세
-// 1. 유저 상세 조회
+// 유저 상세 조회
 // /api/admin/users/:user_id
 exports.getUserDetail = (req, res) => {
   const { user_id } = req.params;
@@ -217,8 +225,167 @@ exports.getUserDetail = (req, res) => {
   });
 };
 
-// 2. 유저 삭제
+// 유저 삭제
 exports.userDelete = (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    DELETE FROM damteul_users
+    WHERE user_id = ?
+  `;
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("삭제 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "유저 삭제 중 서버 오류",
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "삭제할 유저를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "유저 삭제 완료",
+      id,
+    });
+  });
+};
+
+
+// 2.게시글정보 가져오기
+exports.posts = (req, res) => {
+  const sql = `
+    SELECT
+      g.goods_id AS id,
+      CAST(g.category_id AS CHAR) AS category,  -- ✅ 카테고리 테이블 없이 숫자값 그대로(문자열 통일)
+      g.title AS title,
+      u.user_nickname AS author,
+      DATE_FORMAT(g.created_at, '%Y-%m-%d') AS created_at,
+      CASE g.condition_type
+        WHEN 0 THEN '중고상품'
+        WHEN 1 THEN '새상품'
+        ELSE '기타'
+      END AS product_state,
+      'goods' AS post_type
+    FROM dam_goods_posts g
+    JOIN damteul_users u ON u.user_id = g.user_id
+
+    UNION ALL
+
+    SELECT
+      n.nanum_id AS id,
+      '나눔' AS category,  -- ✅ 나눔은 카테고리 고정 문자열
+      n.title AS title,
+      u.user_nickname AS author,
+      DATE_FORMAT(n.created_at, '%Y-%m-%d') AS created_at,
+      CASE n.status
+        WHEN 0 THEN '나눔중'
+        WHEN 1 THEN '나눔완료'
+        ELSE '기타'
+      END AS product_state,
+      'nanum' AS post_type
+    FROM dam_nanum_posts n
+    JOIN damteul_users u ON u.user_id = n.user_id
+
+    ORDER BY created_at DESC;
+
+  `;
+// id, category, title, author, created_at, product_state, post_type
+  connection.query(sql, (err, result) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ success: false, message: "게시판 정보를 불러오는 중 오류가 발생했습니다." });
+    }
+
+    return res.status(200).json({ success: true, message: "게시판 목록 조회 성공" ,posts: result });
+  });
+};
+
+// 게시글 상세
+exports.getPostDetail = (req, res) => {
+  const { cate, id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = cate==='goods'?
+    `SELECT
+      g.goods_id AS id,
+      u.user_nickname AS author,
+      g.title AS title,
+      g.content AS content,
+      DATE_FORMAT(g.created_at,'%Y-%m-%d') AS created_at,
+      CASE g.condition_type
+        WHEN 0 THEN '중고상품'
+        WHEN 1 THEN '새상품'
+        ELSE '기타'
+      END AS product_state
+    FROM dam_goods_posts g
+    JOIN damteul_users u ON u.user_id = g.user_id
+    WHERE g.goods_id = ?
+    LIMIT 1`
+    :
+    `
+    SELECT
+      n.nanum_id AS id,
+      u.user_nickname AS author,
+      n.title AS title,
+      n.content AS content,
+      DATE_FORMAT(n.created_at, '%Y-%m-%d') AS created_at,
+      CASE n.status
+        WHEN 0 THEN '나눔중'
+        WHEN 1 THEN '나눔완료'
+        ELSE '기타'
+      END AS product_state
+    FROM dam_nanum_posts n
+    JOIN damteul_users u ON u.user_id = n.user_id
+    WHERE n.nanum_id = ?
+    LIMIT 1`
+  ;
+
+  connection.query(sql, [id], (err, rows) => {
+    if (err) {
+      console.error("게시물 상세 조회 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "게시물 상세 조회 중 서버 오류",
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "해당 id의 게시물을 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      post: rows[0],
+    });
+  });
+};
+
+// 유저 삭제
+exports.postDelete = (req, res) => {
   const { id } = req.params;
 
   if (!id) {

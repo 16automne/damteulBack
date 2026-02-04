@@ -14,6 +14,12 @@ router.get("/users", adminController.users);
 router.get("/users/:user_id", adminController.getUserDetail);
 router.delete("/users/:id", adminController.userDelete);
 
-//  admin
+// adminPosts
+router.get("/posts", adminController.posts);
+router.get("/:cate/:id", adminController.getPostDetail);
+router.delete("/:cate/:id", adminController.postDelete);
+
+// adminReports
+
 
 module.exports = router;
