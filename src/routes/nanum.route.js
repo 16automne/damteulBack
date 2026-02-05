@@ -10,4 +10,9 @@ router.post("/", upload.array("fileUpload", 10), nanumCtrl.create);
 // GET /api/nanum/:nanum_id - 나눔 상세페이지 조회
 router.get("/:nanum_id", nanumCtrl.findOne);
 
+// 데이터 가져오기
+router.get("/", nanumCtrl.findAll);
+// "응모하기" 시 데이터 추가하기
+router.post("/apply", nanumCtrl.apply);
+
 module.exports = router;
