@@ -5,7 +5,7 @@ require("dotenv").config();
 const app = require("./src/app");
 
 // 포트번호 가져오기 - 포트번호가 빈값이면 9070을 가져와라
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 9070;
 
 // listen
 app.listen(PORT, () => {
