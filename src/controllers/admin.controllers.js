@@ -1,4 +1,66 @@
 const connection = require("../db");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const JWT_SECRET = 'damteul';
+// 로그인
+exports.adminLogin = (req, res) => {
+  const { admin_id, admin_pw } = req.body;
+
+  if (!admin_id?.trim() || !admin_pw?.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: "아이디와 비밀번호를 입력해주세요.",
+    });
+  }
+
+  connection.query(
+    `SELECT login_id, password, name FROM dam_admin_users WHERE login_id = ?`,
+    [admin_id],
+    async (error, rows) => {
+      if (error) {
+        console.error("adminLogin query error:", error);
+        return res.status(500).json({
+          success: false,
+          message: "서버 오류(DB 조회 실패)",
+        });
+      }
+
+      if (!rows || rows.length === 0) {
+        return res.status(401).json({
+          success: false,
+          message: "아이디 올바르지 않습니다.",
+        });
+      }
+
+      const admin = rows[0];
+
+      const ok = await bcrypt.compare(admin_pw, admin.password);
+      if (!ok) {
+        return res.status(401).json({
+          success: false,
+          message: "비밀번호가 올바르지 않습니다.",
+        });
+      }
+
+
+      const token = jwt.sign(
+        { admin_id: admin.login_id },
+        JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        success: true,
+        message: "로그인 성공",
+        token,
+        admin: {
+          admin_id: admin.login_id,
+          admin_name: admin.name,
+        },
+      });
+    }
+  );
+};
 
 // 대쉬보드 정보가져오기
 // /api/admin/dashboard
