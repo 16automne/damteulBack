@@ -74,8 +74,8 @@ const storage = (folder) =>
 
 
 // const multer = require("multer");
-const upload=(folder) => multer({
-  storage:storage(folder),
+const upload = (folder) => multer({
+  storage: storage(folder),
 
   //파일 필터 (mimetype + 확장자 둘 다 체크)
   fileFilter: (req, file, cb) => {
@@ -115,7 +115,7 @@ const validateUploadPath = (req, res, next) => {
 // 1) 이미지 업로드 API (단일)
 app.post(
   "/api/upload/single/:url",
-    validateUploadPath,
+  validateUploadPath,
   (req, res, next) => upload(req.params.url).single("image")(req, res, next),
   (req, res) => {
     if (!req.file) {
