@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/admin.controllers");
+const { getAdminEvents, getAdminNotices } = require("../controllers/admin.noticeEvent.controllers");
 
 
 
@@ -31,6 +32,13 @@ router.delete("/trades/:id", adminController.tradeDelete);
 
 // admainCommu
 router.get("/community", adminController.community);
+
+// 이벤트 목록
+router.get("/events", getAdminEvents);
+
+// 공지사항 목록
+router.get("/notices", getAdminNotices);
+
 
 // adminPosts (젤 하단에 위치 시킬것)
 router.get("/posts", adminController.posts);
