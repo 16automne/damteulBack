@@ -42,6 +42,15 @@ exports.findAll = (req, res) => {
     res.status(200).json(result);
   });
 };
+// 이벤트 데이터 가져오기
+exports.eventFindAll = (req, res) => {
+  // cate =0(이벤트값만)
+  const sql = "SELECT * FROM dam_event_notice WHERE cate = 0 ORDER BY event_id DESC";
+  db.query(sql, (err, result) => {
+    if(err) return res.status(500).json(err);
+    res.status(200).json(result);
+  });
+};
 
 // SQL에 들어갈 이벤트
 // -- 1. 이벤트 스케줄러 활성화
