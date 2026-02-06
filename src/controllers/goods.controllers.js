@@ -96,3 +96,23 @@ exports.findOne = (req, res) => {
     res.json({ ok: true, data: result[0] });
   });
 };
+
+// 게시글 삭제
+exports.remove = (req, res) => {
+  const { goods_id } = req.params;
+  const sql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
+
+  db.query(sql, [goods_id], (err, result) => {
+    if (err) {
+      console.error("삭제 에러:", err);
+      return res.status(500).json({ ok: false, message: "삭제 실패" });
+    }
+    
+    // 영향을 받은 행(row)이 있다면 성공
+    if (result.affectedRows > 0) {
+      res.json({ ok: true, message: "삭제 성공" });
+    } else {
+      res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
+    }
+  });
+};
