@@ -29,19 +29,6 @@ exports.findOne = (req, res) => {
   });
 };
 
-// 이벤트 상세페이지 조회
-exports.eventFindOne = (req, res) => {
-  const {event_id} = req.params;
-  const sql = "SELECT * FROM dam_event_notice WHERE event_id = ?";
-
-  db.query(sql, [event_id], (err, result)=>{
-    if(err)return res.status(500).json(err);
-    if(result.length === 0) return res.status(404).json({message:"이벤트를 찾을 수 없습니다."});
-
-    // 프론트 확인용 type명시
-    res.status(200).json({...result[0],isEvent:true});
-  });
-};
 
 // 데이터 가져오기
 exports.findAll = (req, res) => {
@@ -56,15 +43,7 @@ exports.findAll = (req, res) => {
     res.status(200).json(result);
   });
 };
-// 이벤트 데이터 가져오기
-exports.eventFindAll = (req, res) => {
-  // cate =0(이벤트값만)
-  const sql = "SELECT * FROM dam_event_notice WHERE cate = 0 ORDER BY event_id DESC";
-  db.query(sql, (err, result) => {
-    if(err) return res.status(500).json(err);
-    res.status(200).json(result);
-  });
-};
+
 
 // SQL에 들어갈 이벤트
 // -- 1. 이벤트 스케줄러 활성화

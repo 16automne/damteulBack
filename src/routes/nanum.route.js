@@ -7,9 +7,7 @@ const upload = multer({ dest: "uploads/" });
 // POST /api/nanum - 나눔 글 작성
 router.post("/", upload.array("fileUpload", 10), nanumCtrl.create);
 // "응모하기" 시 데이터 추가하기
-router.post("/apply", nanumCtrl.apply);
-// 이벤트 데이터 가져오기
-router.get('/event/:event_id', nanumCtrl.eventFindAll);
+router.post("/apply", nanumCtrl.apply);;
 // GET /api/nanum/:nanum_id - 나눔 상세페이지 조회
 router.get("/:nanum_id", nanumCtrl.findOne);
 // 데이터 가져오기
