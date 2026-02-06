@@ -10,8 +10,9 @@ router.use("/goods", require("./goods.route"));
 router.use("/user", require("./user.route"));
 router.use("/addresses", require('./address.route'));
 router.use("/nanum", require("./nanum.route"));
-
+router.use("/event", require("./event.route"));
 router.use("/admin",require("./admin.route"));
+router.use("/profile", require("./profile.route"));
 
 // 커뮤니티
 // 경로 - /api/community
