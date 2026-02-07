@@ -14,6 +14,8 @@ router.get("/",goodsCtrl.post);
 router.get("/:goods_id", goodsCtrl.findOne);
 // 글 삭제하기
 router.delete("/:goods_id", goodsCtrl.remove);
+// 좋아요 토글
+router.post('/like', goodsCtrl.toggleLike);
 
 
 module.exports = router;
