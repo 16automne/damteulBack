@@ -13,7 +13,7 @@ router.use("/nanum", require("./nanum.route"));
 router.use("/event", require("./event.route"));
 router.use("/admin",require("./admin.route"));
 router.use("/profile", require("./profile.route"));
-router.use("/chat", require("./chat.route"));
+
 // 커뮤니티
 // 경로 - /api/community
 router.use("/community", require("./community.route"));

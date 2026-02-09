@@ -78,7 +78,7 @@ const ALLOWED = ["community", "goods", "profile"];
 =======
 
 // 들어올수 있는 url 한정 시키기
-const ALLOWED = ["community", "goods", "profile", "event", "notice"];
+const ALLOWED = ["community", "goods", "profile", "event"];
 
 
 // url 한정 함수
