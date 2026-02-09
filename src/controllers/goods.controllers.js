@@ -174,23 +174,35 @@ exports.findOne = (req, res) => {
   });
 };
 
-// 게시글 삭제
-exports.remove = (req, res) => {
-  const { goods_id } = req.params;
-  const sql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
 
-  db.query(sql, [goods_id], (err, result) => {
+// 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
+exports.myList = (req, res) => {
+  const user_id = 11;  //유저의 ID (임시로 11번 사용 중)
+
+  // 내가 올린 상품 중 - 
+	// 판매중(0)인 상품의 제목, 가격, 첫 번째 이미지 가져오기
+  const sql = `
+    SELECT 
+      p.goods_id as id, 
+      p.title as name, 
+      p.price, 
+      i.image_url as img
+    FROM dam_goods_posts p
+    LEFT JOIN (
+      SELECT goods_id, MIN(image_url) as image_url 
+      FROM dam_goods_images 
+      GROUP BY goods_id
+    ) i ON p.goods_id = i.goods_id
+    WHERE p.user_id = ? AND p.status = 0
+    ORDER BY p.created_at DESC
+  `;
+
+  db.query(sql, [user_id], (err, results) => {
     if (err) {
-      console.error("삭제 에러:", err);
-      return res.status(500).json({ ok: false, message: "삭제 실패" });
+      console.error("❌ 내 상품 목록 조회 실패:", err);
+      return res.status(500).json({ ok: false, message: "조회 실패" });
     }
-    
-    // 영향을 받은 행(row)이 있다면 성공
-    if (result.affectedRows > 0) {
-      res.json({ ok: true, message: "삭제 성공" });
-    } else {
-      res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
-    }
+    res.json(results); 
   });
 };
 

@@ -215,15 +215,15 @@ exports.dashboard = (req, res) => {
 
 // 1. 유저정보 가져오기
 //api/admin/users
-exports.users = (req, res)=>{
+exports.users = (req, res) => {
   const getUsersInfo = `
     SELECT user_id, user_nickname, level_code, reported_count, status, created_at FROM damteul_users
   `;
-  connection.query(getUsersInfo,(err,result)=>{
-    if(err){
+  connection.query(getUsersInfo, (err, result) => {
+    if (err) {
       console.error("users 조회 오류: ", err);
       return res.status(500).json({
-        success:false,
+        success: false,
         message: "사용자 정보를 불러오는 중 오류가 발생했습니다.",
         error: err.message, //개발용
       });
@@ -366,14 +366,14 @@ exports.posts = (req, res) => {
     ORDER BY created_at DESC;
 
   `;
-// id, category, title, author, created_at, product_state, post_type
+  // id, category, title, author, created_at, product_state, post_type
   connection.query(sql, (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).json({ success: false, message: "게시판 정보를 불러오는 중 오류가 발생했습니다." });
     }
 
-    return res.status(200).json({ success: true, message: "게시판 목록 조회 성공" ,posts: result });
+    return res.status(200).json({ success: true, message: "게시판 목록 조회 성공", posts: result });
   });
 };
 
@@ -388,7 +388,7 @@ exports.getPostDetail = (req, res) => {
     });
   }
 
-  const sql = cate==='goods'?
+  const sql = cate === 'goods' ?
     `SELECT
       g.goods_id AS id,
       u.user_nickname AS author,
@@ -421,7 +421,7 @@ exports.getPostDetail = (req, res) => {
     JOIN damteul_users u ON u.user_id = n.user_id
     WHERE n.nanum_id = ?
     LIMIT 1`
-  ;
+    ;
 
   connection.query(sql, [id], (err, rows) => {
     if (err) {
@@ -457,13 +457,13 @@ exports.postDelete = (req, res) => {
     });
   }
 
-  const sql = url==='goods'?`
+  const sql = url === 'goods' ? `
     DELETE FROM dam_goods_posts
     WHERE goods_id = ?
   `:
-  `DELETE FROM dam_nanum_posts
+    `DELETE FROM dam_nanum_posts
     WHERE nanum_id = ?`
-  ;
+    ;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
@@ -489,9 +489,8 @@ exports.postDelete = (req, res) => {
   });
 };
 
-
 // 3. 신고정보 가져오기
-exports.reports = (req, res) =>{
+exports.reports = (req, res) => {
   const getReportsInfo = `
     SELECT 
       r.report_id AS id,
@@ -514,11 +513,11 @@ exports.reports = (req, res) =>{
     JOIN damteul_users u_reporter ON u_reporter.user_id = r.reporter_user_id
     ORDER BY r.report_id DESC;
   `;
-  connection.query(getReportsInfo,(err,result)=>{
-    if(err){
+  connection.query(getReportsInfo, (err, result) => {
+    if (err) {
       console.error("reports 조회 오류: ", err);
       return res.status(500).json({
-        success:false,
+        success: false,
         message: "신고 정보를 불러오는 중 오류가 발생했습니다.",
         error: err.message, //개발용
       });
@@ -533,8 +532,8 @@ exports.reports = (req, res) =>{
 }
 
 // 신고정보 상세
-exports.getReportsDetail = (req, res) =>{
-  const {id} = req.params;
+exports.getReportsDetail = (req, res) => {
+  const { id } = req.params;
 
   if (!id) {
     return res.status(400).json({
@@ -824,11 +823,11 @@ exports.trades = (req, res) => {
     ORDER BY t.tx_id DESC;
   `;
 
-  connection.query(getTradesInfo,(err,result) => {
-    if(err){
+  connection.query(getTradesInfo, (err, result) => {
+    if (err) {
       console.error("trades 조회 오류: ", err);
       return res.status(500).json({
-        success:false,
+        success: false,
         message: "거래 정보를 불러오는 중 오류가 발생했습니다.",
         error: err.message, //개발용
       });
@@ -844,7 +843,7 @@ exports.trades = (req, res) => {
 
 // 거래상세
 exports.getTradesDeatail = (req, res) => {
-  const {id} = req.params;
+  const { id } = req.params;
 
   if (!id) {
     return res.status(400).json({
@@ -853,7 +852,7 @@ exports.getTradesDeatail = (req, res) => {
     });
   }
 
-  const sql =`
+  const sql = `
     SELECT
       t.tx_id AS id,
       g.title AS product,
@@ -937,11 +936,9 @@ exports.tradeDelete = (req, res) => {
   });
 };
 
-// 5.
-
 
 // 6. 커뮤니티 정보가져오기
-exports.community = (req,res) => {
+exports.community = (req, res) => {
   const getCommunityInfo = `
     SELECT
     c.post_id AS id,
@@ -956,11 +953,11 @@ exports.community = (req,res) => {
     JOIN damteul_users u ON u.user_id = c.user_id
     ORDER BY c.post_id DESC;
   `;
-  connection.query(getCommunityInfo ,(err,result) => {
-    if(err){
+  connection.query(getCommunityInfo, (err, result) => {
+    if (err) {
       console.error("community 조회 오류: ", err);
       return res.status(500).json({
-        success:false,
+        success: false,
         message: "커뮤니티 정보를 불러오는 중 오류가 발생했습니다.",
         error: err.message, //개발용
       });
@@ -973,3 +970,94 @@ exports.community = (req,res) => {
     })
   })
 }
+
+// 커뮤니티 상세
+exports.getCommunityDetail = (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    SELECT
+      u.user_nickname AS author,
+      c.title,
+      c.content,
+      CASE c.cate
+        WHEN 0 THEN '카테고리'
+        WHEN 1 THEN '미정'
+        ELSE '기타'
+      END AS category,
+      DATE_FORMAT(c.created_at,'%Y-%m-%d') AS created_at
+    FROM dam_community_posts c
+    JOIN damteul_users u ON u.user_id = c.user_id
+    WHERE c.post_id = ?
+    LIMIT 1
+  `;
+
+  connection.query(sql, [id], (err, rows) => {
+    if (err) {
+      console.error("커뮤니티 상세 조회 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "커뮤니티 상세 조회 중 서버 오류",
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "해당 post_id 유저를 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      community: rows[0],
+    });
+  });
+}
+
+// 커뮤니티 삭제
+exports.communityDelete = (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({
+      success: false,
+      message: "id가 전달되지 않았습니다.",
+    });
+  }
+
+  const sql = `
+    DELETE FROM dam_community_posts
+    WHERE post_id = ?
+  `;
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("삭제 SQL 에러:", err);
+      return res.status(500).json({
+        success: false,
+        message: "게시물 삭제 중 서버 오류",
+      });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "삭제할 게시물을 찾을 수 없습니다.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "게시물 정보 삭제 완료",
+      id,
+    });
+  });
+};
