@@ -45,7 +45,7 @@ const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", 
 const ALLOWED_MIME_PREFIX = ["image/"]; // image/png, image/jpeg 등
 
 // “URL이 /uploads/...로 오면, 서버의 damteulBackend/uploads/... 폴더에서 파일을 찾아서 그대로 보내줘!”
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 
 // multer 저장 규칙
@@ -55,7 +55,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 const storage = (folder) =>
   multer.diskStorage({
     destination: (req, file, cb) => {
-      const uploadPath = path.join(__dirname, "uploads", folder);
+      const uploadPath = path.join(__dirname, "../uploads", folder);
 
       // 폴더 없으면 생성
       if (!fs.existsSync(uploadPath)) {

@@ -1,7 +1,7 @@
 const db = require("../db");
 
 exports.create = (req, res) => {
-  const { user_id, title, content, status } = req.body;
+  const { user_id, title, content, status, images } = req.body;
 
   const sql = `
     INSERT INTO dam_nanum_posts (user_id, title, content, status, end_nanum) 
@@ -13,26 +13,83 @@ exports.create = (req, res) => {
       console.error(err);
       return res.status(500).json({ error: "DB 저장 실패" });
     }
-    // 생성된 nanum_id 반환
-    res.status(200).json({ nanum_id: result.insertId });
+    const nanum_id = result.insertId;
+
+    // ✅ 이미지 처리 로직
+    if (images && (Array.isArray(images) || (typeof images === 'string' && images.length > 0))) {
+      let imageList = [];
+      
+      if (Array.isArray(images)) {
+        // 객체 배열이면 url만 추출, 아니면 그대로
+        imageList = images.map(img => (typeof img === 'object' ? img.url : img));
+      } else {
+        // 문자열이면 split
+        imageList = images.split(',');
+      }
+
+      const imageSql = `
+        INSERT INTO dam_nanum_images (nanum_id, image_url) 
+        VALUES ?
+      `;
+
+      // 데이터 정제: [object Object] 방지 및 문자열 강제 변환
+      const imageParams = imageList
+        .filter(url => url && String(url).indexOf('[object Object]') === -1)
+        .map(url => [
+          nanum_id,
+          String(url).trim()
+        ]);
+
+      if (imageParams.length > 0) {
+        db.query(imageSql, [imageParams], (imgErr) => {
+          if (imgErr) console.error("이미지 저장 에러:", imgErr.sqlMessage);
+          return res.status(200).json({ nanum_id: nanum_id });
+        });
+      } else {
+        return res.status(200).json({ nanum_id: nanum_id });
+      }
+    } else {
+      res.status(200).json({ nanum_id: nanum_id });
+    }
   });
 };
 
 // 조회하기
 exports.findOne = (req, res) => {
   const { nanum_id } = req.params;
-  const sql = "SELECT dam_nanum_posts.*, damteul_users.user_nickname,damteul_users.level_code FROM dam_nanum_posts JOIN damteul_users ON dam_nanum_posts.user_id = damteul_users.user_id WHERE dam_nanum_posts.nanum_id =?";
+  const sql = "SELECT dam_nanum_posts.*, damteul_users.user_nickname, damteul_users.level_code FROM dam_nanum_posts JOIN damteul_users ON dam_nanum_posts.user_id = damteul_users.user_id WHERE dam_nanum_posts.nanum_id =?";
 
   db.query(sql, [nanum_id], (err, result) => {
     if (err) return res.status(500).json(err);
-    res.status(200).json(result[0]);
+    
+    const data = result[0];
+
+    // 이미지 따로 조회
+    const imageSql = `
+      SELECT image_url
+      FROM dam_nanum_images
+      WHERE nanum_id = ?`;
+
+    db.query(imageSql, [nanum_id], (imgErr, images) => {
+      if (imgErr) {
+        console.error("이미지 조회 에러", imgErr);
+        return res.status(500).json({ error: "이미지 조회 실패" });
+      }
+      data.images = images;
+      res.status(200).json(data);
+    });
   });
 };
 
 
 // 데이터 가져오기
 exports.findAll = (req, res) => {
-  const sql = "SELECT * FROM dam_nanum_posts ORDER BY created_at DESC";
+  const sql = `
+    SELECT 
+      dam_nanum_posts.*,
+      (SELECT image_url FROM dam_nanum_images WHERE dam_nanum_images.nanum_id = dam_nanum_posts.nanum_id LIMIT 1) AS image
+    FROM dam_nanum_posts 
+    ORDER BY created_at DESC`;
 
   db.query(sql, (err, result) => {
     if(err){
@@ -86,4 +143,27 @@ exports.apply = (req, res) => {
       res.status(200).json({ message: "응모 성공", apply_id: result.insertId });
     });
   });
+};
+
+// 이미지 다중 업로드
+exports.uploadImages = (req, res) => {
+	if (!req.files || req.files.length === 0) {
+		console.error("❌ 업로드 실패: 파일이 없습니다.");
+		return res.status(400).json({ ok: false, message: "파일이 없습니다." });
+	}
+
+	console.log("✅ 업로드 성공 - 파일 개수:", req.files.length);
+	console.log("📁 저장된 파일들 :", req.files.map(f => f.filename));
+
+	const files = req.files.map((f) => ({
+		savedName: f.filename,
+		url: `/uploads/nanum/${f.filename}`,
+	}));
+
+	console.log("🔗 반환될 URL들:", files);
+
+	res.json({
+		ok: true,
+		files: files
+	});
 };
