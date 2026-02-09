@@ -14,6 +14,8 @@ router.get("/",goodsCtrl.post);
 router.get("/myList", goodsCtrl.myList); 
 // GoodsDetail에 띄울 상세페이지 정보 조회하기
 router.get("/:goods_id", goodsCtrl.findOne);
+// 글 삭제하기
+router.delete("/:goods_id", goodsCtrl.remove);
 
 
 module.exports = router;

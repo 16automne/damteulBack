@@ -97,6 +97,7 @@ exports.findOne = (req, res) => {
   });
 };
 
+<<<<<<< HEAD
 
 // 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
 exports.myList = (req, res) => {
@@ -126,5 +127,24 @@ exports.myList = (req, res) => {
       return res.status(500).json({ ok: false, message: "조회 실패" });
     }
     res.json(results); 
+=======
+// 게시글 삭제
+exports.remove = (req, res) => {
+  const { goods_id } = req.params;
+  const sql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
+
+  db.query(sql, [goods_id], (err, result) => {
+    if (err) {
+      console.error("삭제 에러:", err);
+      return res.status(500).json({ ok: false, message: "삭제 실패" });
+    }
+    
+    // 영향을 받은 행(row)이 있다면 성공
+    if (result.affectedRows > 0) {
+      res.json({ ok: true, message: "삭제 성공" });
+    } else {
+      res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
+    }
+>>>>>>> ab8f21d71c01d81ea1a23630fb3749a7eb1d94e8
   });
 };
