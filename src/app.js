@@ -44,10 +44,6 @@ const storage = (folder) =>
     },
   });
 
-<<<<<<< HEAD
-const upload = (folder) => multer({
-  storage: storage(folder),
-=======
 
 
 // const multer = require("multer");
@@ -55,7 +51,6 @@ const upload = (folder) => multer({
   storage: storage(folder),
 
   //파일 필터 (mimetype + 확장자 둘 다 체크)
->>>>>>> ab8f21d71c01d81ea1a23630fb3749a7eb1d94e8
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const mimetype = (file.mimetype || "").toLowerCase();
@@ -72,17 +67,12 @@ const upload = (folder) => multer({
   },
 });
 
-<<<<<<< HEAD
-// ✅ 4. 업로드 경로 검증 미들웨어
-const ALLOWED = ["community", "goods", "profile"];
-=======
 
 // 들어올수 있는 url 한정 시키기
 const ALLOWED = ["community", "goods", "profile", "event", "notice"];
 
 
 // url 한정 함수
->>>>>>> ab8f21d71c01d81ea1a23630fb3749a7eb1d94e8
 const validateUploadPath = (req, res, next) => {
   if (!ALLOWED.includes(req.params.url)) {
     return res.status(400).json({ success: false, message: "허용되지 않은 경로" });
