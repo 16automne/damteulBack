@@ -14,8 +14,9 @@ const goodsCtrl = require("../controllers/goods.controllers");
 router.post("/", goodsCtrl.create);
 
 // 글 목록 가져오기
-router.get("/", goodsCtrl.post);
-
+router.get("/",goodsCtrl.post);
+// 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
+// router.get("/myList", goodsCtrl.myList); 
 // GoodsDetail에 띄울 상세페이지 정보 조회하기
 router.get("/:goods_id", goodsCtrl.findOne);
 

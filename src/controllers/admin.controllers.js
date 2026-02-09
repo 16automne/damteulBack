@@ -1,8 +1,15 @@
+// backend/src/controllers/admin.controllers.js (예시 파일명)
+// 너가 올린 코드 전체를 "이 파일"로 교체하면 됨.
+
 const connection = require("../db");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const JWT_SECRET = 'damteul';
-// 로그인
+
+const JWT_SECRET = "damteul";
+
+// ---------------------------
+// 0) 관리자 로그인
+// ---------------------------
 exports.adminLogin = (req, res) => {
   const { admin_id, admin_pw } = req.body;
 
@@ -42,12 +49,9 @@ exports.adminLogin = (req, res) => {
         });
       }
 
-
-      const token = jwt.sign(
-        { admin_id: admin.login_id },
-        JWT_SECRET,
-        { expiresIn: "7d" }
-      );
+      const token = jwt.sign({ admin_id: admin.login_id }, JWT_SECRET, {
+        expiresIn: "7d",
+      });
 
       return res.json({
         success: true,
@@ -62,23 +66,25 @@ exports.adminLogin = (req, res) => {
   );
 };
 
-// 대쉬보드 정보가져오기
+// ---------------------------
+// 1) 대쉬보드
 // /api/admin/dashboard
+// ---------------------------
 exports.dashboard = (req, res) => {
   // 1) KPI (오늘/이번달 가입/신고/게시물)
   const kpiQuery = `
     SELECT
-      (SELECT COUNT(*) FROM damteul_users WHERE DATE(created_at) = CURDATE()) AS today_users,
-      (SELECT COUNT(*) FROM dam_reports WHERE DATE(created_at) = CURDATE()) AS today_reports,
-      (SELECT COUNT(*) FROM dam_goods_posts WHERE DATE(created_at) = CURDATE()) AS today_goods_posts,
-      (SELECT COUNT(*) FROM dam_nanum_posts WHERE DATE(created_at) = CURDATE()) AS today_nanum_posts,
-      (SELECT COUNT(*) FROM dam_community_posts WHERE DATE(created_at) = CURDATE()) AS today_community_posts,
-      
-      (SELECT COUNT(*) FROM damteul_users WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_users,
-      (SELECT COUNT(*) FROM dam_reports WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_reports,
-      (SELECT COUNT(*) FROM dam_goods_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_goods_posts,
-      (SELECT COUNT(*) FROM dam_nanum_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_nanum_posts,
-      (SELECT COUNT(*) FROM dam_community_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE())) AS month_community_posts
+      (SELECT COUNT(*) FROM damteul_users WHERE DATE(created_at) = CURDATE() AND is_deleted = 0) AS today_users,
+      (SELECT COUNT(*) FROM dam_reports WHERE DATE(created_at) = CURDATE() AND is_deleted = 0) AS today_reports,
+      (SELECT COUNT(*) FROM dam_goods_posts WHERE DATE(created_at) = CURDATE() AND is_deleted = 0) AS today_goods_posts,
+      (SELECT COUNT(*) FROM dam_nanum_posts WHERE DATE(created_at) = CURDATE() AND is_deleted = 0) AS today_nanum_posts,
+      (SELECT COUNT(*) FROM dam_community_posts WHERE DATE(created_at) = CURDATE() AND is_deleted = 0) AS today_community_posts,
+
+      (SELECT COUNT(*) FROM damteul_users WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) AND is_deleted = 0) AS month_users,
+      (SELECT COUNT(*) FROM dam_reports WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) AND is_deleted = 0) AS month_reports,
+      (SELECT COUNT(*) FROM dam_goods_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) AND is_deleted = 0) AS month_goods_posts,
+      (SELECT COUNT(*) FROM dam_nanum_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) AND is_deleted = 0) AS month_nanum_posts,
+      (SELECT COUNT(*) FROM dam_community_posts WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) AND is_deleted = 0) AS month_community_posts
   `;
 
   // 2) 일자별 요약 (최근 7일)
@@ -99,12 +105,14 @@ exports.dashboard = (req, res) => {
       SELECT DATE(created_at) AS d, COUNT(*) AS users
       FROM damteul_users
       WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+        AND is_deleted = 0
       GROUP BY DATE(created_at)
     ) u ON u.d = DATE(d.date)
     LEFT JOIN (
       SELECT DATE(created_at) AS d, COUNT(*) AS reports
       FROM dam_reports
       WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+        AND is_deleted = 0
       GROUP BY DATE(created_at)
     ) r ON r.d = DATE(d.date)
     LEFT JOIN (
@@ -113,18 +121,21 @@ exports.dashboard = (req, res) => {
         SELECT DATE(created_at) AS d
         FROM dam_nanum_posts
         WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+          AND is_deleted = 0
 
         UNION ALL
 
         SELECT DATE(created_at) AS d
         FROM dam_goods_posts
         WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+          AND is_deleted = 0
 
         UNION ALL
 
         SELECT DATE(created_at) AS d
         FROM dam_community_posts
         WHERE created_at >= CURDATE() - INTERVAL 6 DAY
+          AND is_deleted = 0
       ) x
       GROUP BY d
     ) p ON p.d = DATE(d.date)
@@ -132,16 +143,14 @@ exports.dashboard = (req, res) => {
   `;
 
   // 3) 이벤트/공지 최근 N개
-  // ✅ 너가 실제 컬럼명으로 수정했다고 했으니, 그 컬럼명 기준으로 유지해줘.
-  // 예시: event_id, title, cate, created_at
   const eventsQuery = `
-    SELECT event_id, title, cate,  DATE_FORMAT(created_at, '%Y-%m-%d') AS date
+    SELECT event_id, title, cate, DATE_FORMAT(created_at, '%Y-%m-%d') AS date
     FROM dam_event_notice
+    WHERE is_deleted = 0
     ORDER BY created_at DESC
     LIMIT 5
   `;
 
-  // --- KPI 쿼리 실행 ---
   connection.query(kpiQuery, (err, kpiRows) => {
     if (err) {
       console.error("KPI query error:", err);
@@ -153,8 +162,14 @@ exports.dashboard = (req, res) => {
     }
 
     const k = kpiRows?.[0] || {};
-    const dPosts = (k.today_goods_posts ?? 0) + (k.today_nanum_posts ?? 0) + (k.today_community_posts ?? 0);
-    const mPosts = (k.month_goods_posts ?? 0) + (k.month_nanum_posts ?? 0) + (k.month_community_posts ?? 0);
+    const dPosts =
+      (k.today_goods_posts ?? 0) +
+      (k.today_nanum_posts ?? 0) +
+      (k.today_community_posts ?? 0);
+    const mPosts =
+      (k.month_goods_posts ?? 0) +
+      (k.month_nanum_posts ?? 0) +
+      (k.month_community_posts ?? 0);
 
     const kpiData = {
       today: {
@@ -169,7 +184,6 @@ exports.dashboard = (req, res) => {
       },
     };
 
-    // --- SUMMARY 쿼리 실행 ---
     connection.query(summaryQuery, (err, summaryRows) => {
       if (err) {
         console.error("SUMMARY query error:", err);
@@ -187,7 +201,6 @@ exports.dashboard = (req, res) => {
         posts: row.posts ?? 0,
       }));
 
-      // --- EVENTS 쿼리 실행 ---
       connection.query(eventsQuery, (err, eventsRows) => {
         if (err) {
           console.error("EVENTS query error:", err);
@@ -201,23 +214,26 @@ exports.dashboard = (req, res) => {
         const eventsData = (eventsRows || []).map((row) => ({
           id: row.event_id,
           title: row.title,
-          type: row.cate, // '이벤트' | '공지사항' 등
+          type: row.cate,
           date: row.date,
         }));
 
-        // ✅ 모든 데이터 준비 완료 → 한번에 응답
         return res.json({ kpiData, summaryData, eventsData });
       });
     });
   });
 };
 
-
-// 1. 유저정보 가져오기
-//api/admin/users
+// ---------------------------
+// 2) 유저 목록
+// /api/admin/users
+// ---------------------------
 exports.users = (req, res) => {
   const getUsersInfo = `
-    SELECT user_id, user_nickname, level_code, reported_count, status, created_at FROM damteul_users
+    SELECT user_id, user_nickname, level_code, reported_count, status, created_at
+    FROM damteul_users
+    WHERE is_deleted = 0
+    ORDER BY user_id DESC
   `;
   connection.query(getUsersInfo, (err, result) => {
     if (err) {
@@ -225,22 +241,19 @@ exports.users = (req, res) => {
       return res.status(500).json({
         success: false,
         message: "사용자 정보를 불러오는 중 오류가 발생했습니다.",
-        error: err.message, //개발용
+        error: err.message,
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "사용자 목록 조회 성공",
-      users: result, // 결과값
-    })
+      users: result,
+    });
   });
 };
 
-
-// 유저 상세
-// 유저 상세 조회
-// /api/admin/users/:user_id
+// 유저 상세 (요청대로 상세는 is_deleted 조건 안 넣음)
 exports.getUserDetail = (req, res) => {
   const { user_id } = req.params;
 
@@ -287,7 +300,7 @@ exports.getUserDetail = (req, res) => {
   });
 };
 
-// 유저 삭제
+// ✅ 유저 삭제 (DELETE -> UPDATE soft delete)
 exports.userDelete = (req, res) => {
   const { id } = req.params;
 
@@ -299,16 +312,18 @@ exports.userDelete = (req, res) => {
   }
 
   const sql = `
-    DELETE FROM damteul_users
+    UPDATE damteul_users
+    SET is_deleted = 1
     WHERE user_id = ?
+      AND is_deleted = 0
   `;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
-      console.error("삭제 SQL 에러:", err);
+      console.error("유저 소프트삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "유저 삭제 중 서버 오류",
+        message: "유저 삭제(소프트) 중 서버 오류",
       });
     }
 
@@ -321,19 +336,28 @@ exports.userDelete = (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "유저 삭제 완료",
+      message: "유저 삭제(소프트) 완료",
       id,
     });
   });
 };
 
-
-// 2.게시글정보 가져오기
+// ---------------------------
+// 3) 게시글 목록 (중고/나눔)
+// ---------------------------
 exports.posts = (req, res) => {
   const sql = `
     SELECT
       g.goods_id AS id,
-      CAST(g.category_id AS CHAR) AS category,  -- ✅ 카테고리 테이블 없이 숫자값 그대로(문자열 통일)
+      CASE g.category_id
+        WHEN 1 THEN '티켓/교환권'
+        WHEN 2 THEN '의류'
+        WHEN 3 THEN '뷰티/미용'
+        WHEN 4 THEN '유아용품'
+        WHEN 5 THEN '도서'
+        WHEN 6 THEN '스포츠/레저'
+        WHEN 7 THEN '디지털기기'
+      END AS category,
       g.title AS title,
       u.user_nickname AS author,
       DATE_FORMAT(g.created_at, '%Y-%m-%d') AS created_at,
@@ -345,12 +369,13 @@ exports.posts = (req, res) => {
       'goods' AS post_type
     FROM dam_goods_posts g
     JOIN damteul_users u ON u.user_id = g.user_id
+    WHERE g.is_deleted = 0
 
     UNION ALL
 
     SELECT
       n.nanum_id AS id,
-      '나눔' AS category,  -- ✅ 나눔은 카테고리 고정 문자열
+      '나눔' AS category,
       n.title AS title,
       u.user_nickname AS author,
       DATE_FORMAT(n.created_at, '%Y-%m-%d') AS created_at,
@@ -362,22 +387,29 @@ exports.posts = (req, res) => {
       'nanum' AS post_type
     FROM dam_nanum_posts n
     JOIN damteul_users u ON u.user_id = n.user_id
+    WHERE n.is_deleted = 0
 
     ORDER BY created_at DESC;
-
   `;
-  // id, category, title, author, created_at, product_state, post_type
+
   connection.query(sql, (err, result) => {
     if (err) {
-      console.error(err);
-      return res.status(500).json({ success: false, message: "게시판 정보를 불러오는 중 오류가 발생했습니다." });
+      console.error("posts 조회 오류:", err);
+      return res.status(500).json({
+        success: false,
+        message: "게시판 정보를 불러오는 중 오류가 발생했습니다.",
+      });
     }
 
-    return res.status(200).json({ success: true, message: "게시판 목록 조회 성공", posts: result });
+    return res.status(200).json({
+      success: true,
+      message: "게시판 목록 조회 성공",
+      posts: result,
+    });
   });
 };
 
-// 게시글 상세
+// 게시글 상세 (요청대로 상세는 is_deleted 조건 안 넣음)
 exports.getPostDetail = (req, res) => {
   const { cate, id } = req.params;
 
@@ -388,40 +420,38 @@ exports.getPostDetail = (req, res) => {
     });
   }
 
-  const sql = cate === 'goods' ?
-    `SELECT
-      g.goods_id AS id,
-      u.user_nickname AS author,
-      g.title AS title,
-      g.content AS content,
-      DATE_FORMAT(g.created_at,'%Y-%m-%d') AS created_at,
-      CASE g.condition_type
-        WHEN 0 THEN '중고상품'
-        WHEN 1 THEN '새상품'
-        ELSE '기타'
-      END AS product_state
-    FROM dam_goods_posts g
-    JOIN damteul_users u ON u.user_id = g.user_id
-    WHERE g.goods_id = ?
-    LIMIT 1`
-    :
-    `
-    SELECT
-      n.nanum_id AS id,
-      u.user_nickname AS author,
-      n.title AS title,
-      n.content AS content,
-      DATE_FORMAT(n.created_at, '%Y-%m-%d') AS created_at,
-      CASE n.status
-        WHEN 0 THEN '나눔중'
-        WHEN 1 THEN '나눔완료'
-        ELSE '기타'
-      END AS product_state
-    FROM dam_nanum_posts n
-    JOIN damteul_users u ON u.user_id = n.user_id
-    WHERE n.nanum_id = ?
-    LIMIT 1`
-    ;
+  const sql =
+    cate === "goods"
+      ? `SELECT
+          g.goods_id AS id,
+          u.user_nickname AS author,
+          g.title AS title,
+          g.content AS content,
+          DATE_FORMAT(g.created_at,'%Y-%m-%d') AS created_at,
+          CASE g.condition_type
+            WHEN 0 THEN '중고상품'
+            WHEN 1 THEN '새상품'
+            ELSE '기타'
+          END AS product_state
+        FROM dam_goods_posts g
+        JOIN damteul_users u ON u.user_id = g.user_id
+        WHERE g.goods_id = ?
+        LIMIT 1`
+      : `SELECT
+          n.nanum_id AS id,
+          u.user_nickname AS author,
+          n.title AS title,
+          n.content AS content,
+          DATE_FORMAT(n.created_at, '%Y-%m-%d') AS created_at,
+          CASE n.status
+            WHEN 0 THEN '나눔중'
+            WHEN 1 THEN '나눔완료'
+            ELSE '기타'
+          END AS product_state
+        FROM dam_nanum_posts n
+        JOIN damteul_users u ON u.user_id = n.user_id
+        WHERE n.nanum_id = ?
+        LIMIT 1`;
 
   connection.query(sql, [id], (err, rows) => {
     if (err) {
@@ -446,7 +476,7 @@ exports.getPostDetail = (req, res) => {
   });
 };
 
-// 게시글 삭제
+// ✅ 게시글 삭제 (DELETE -> UPDATE soft delete)
 exports.postDelete = (req, res) => {
   const { url, id } = req.params;
 
@@ -457,20 +487,27 @@ exports.postDelete = (req, res) => {
     });
   }
 
-  const sql = url === 'goods' ? `
-    DELETE FROM dam_goods_posts
-    WHERE goods_id = ?
-  `:
-    `DELETE FROM dam_nanum_posts
-    WHERE nanum_id = ?`
-    ;
+  const sql =
+    url === "goods"
+      ? `
+        UPDATE dam_goods_posts
+        SET is_deleted = 1
+        WHERE goods_id = ?
+          AND is_deleted = 0
+      `
+      : `
+        UPDATE dam_nanum_posts
+        SET is_deleted = 1
+        WHERE nanum_id = ?
+          AND is_deleted = 0
+      `;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
-      console.error("삭제 SQL 에러:", err);
+      console.error("게시물 소프트삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "게시물 삭제 중 서버 오류",
+        message: "게시물 삭제(소프트) 중 서버 오류",
       });
     }
 
@@ -483,13 +520,15 @@ exports.postDelete = (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "게시물 삭제 완료",
+      message: "게시물 삭제(소프트) 완료",
       id,
     });
   });
 };
 
-// 3. 신고정보 가져오기
+// ---------------------------
+// 4) 신고 목록
+// ---------------------------
 exports.reports = (req, res) => {
   const getReportsInfo = `
     SELECT 
@@ -511,27 +550,29 @@ exports.reports = (req, res) => {
     FROM dam_reports r
     JOIN damteul_users u_reported ON u_reported.user_id = r.writer_user_id
     JOIN damteul_users u_reporter ON u_reporter.user_id = r.reporter_user_id
+    WHERE r.is_deleted = 0
     ORDER BY r.report_id DESC;
   `;
+
   connection.query(getReportsInfo, (err, result) => {
     if (err) {
       console.error("reports 조회 오류: ", err);
       return res.status(500).json({
         success: false,
         message: "신고 정보를 불러오는 중 오류가 발생했습니다.",
-        error: err.message, //개발용
+        error: err.message,
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "신고 목록 조회 성공",
-      reports: result, // 결과값
-    })
+      reports: result,
+    });
   });
-}
+};
 
-// 신고정보 상세
+// 신고 상세 (상세는 is_deleted 조건 안 넣음)
 exports.getReportsDetail = (req, res) => {
   const { id } = req.params;
 
@@ -565,7 +606,7 @@ exports.getReportsDetail = (req, res) => {
         WHEN 2 THEN '욕설/비방 표현이 있어요.'
         WHEN 3 THEN '가격이 지나치게 비싸요(사기 의심).'
         WHEN 4 THEN '허위 매물로 의심됩니다.'
-        END AS reason,
+      END AS reason,
       DATE_FORMAT(r.created_at, '%Y-%m-%d') AS created_at
     FROM dam_reports r
     JOIN damteul_users u_reported ON u_reported.user_id = r.writer_user_id
@@ -595,12 +636,12 @@ exports.getReportsDetail = (req, res) => {
       report: rows[0],
     });
   });
-}
+};
 
-// 상태 변경
+// 상태 변경 (너 코드 그대로 유지)
 exports.updateReportsDetail = (req, res) => {
   const { id } = req.params;
-  const { status } = req.body; // processing_result로 저장될 값
+  const { status } = req.body;
 
   if (!id) {
     return res.status(400).json({
@@ -609,7 +650,6 @@ exports.updateReportsDetail = (req, res) => {
     });
   }
 
-  // pool에서 커넥션 1개 빌리기
   connection.getConnection((connErr, conn) => {
     if (connErr) {
       console.error("❌ getConnection 에러:", connErr);
@@ -619,7 +659,6 @@ exports.updateReportsDetail = (req, res) => {
       });
     }
 
-    // 트랜잭션 시작
     conn.beginTransaction((txErr) => {
       if (txErr) {
         console.error("❌ beginTransaction 에러:", txErr);
@@ -630,7 +669,6 @@ exports.updateReportsDetail = (req, res) => {
         });
       }
 
-      // 1) 현재 report 조회 + 잠금
       const selectSql = `
         SELECT report_id, writer_user_id, processing_result
         FROM dam_reports
@@ -661,9 +699,6 @@ exports.updateReportsDetail = (req, res) => {
         const writerUserId = report.writer_user_id;
         const prevProcessingResult = report.processing_result;
 
-        // 2) report 업데이트
-        // - processing_result = ?
-        // - processing_result가 NULL이 아니면 dam_reports.status = 1로 세팅
         const updateReportSql = `
           UPDATE dam_reports
           SET
@@ -694,9 +729,6 @@ exports.updateReportsDetail = (req, res) => {
             });
           }
 
-          // 3) reported_count 증가 조건:
-          // - 이번에 들어온 status(=processing_result)가 1
-          // - 이전 processing_result가 NULL (중복 증가 방지)
           const shouldInc = Number(status) === 1 && prevProcessingResult === null;
 
           const commitAndReturn = (reported_count_increased) => {
@@ -719,11 +751,8 @@ exports.updateReportsDetail = (req, res) => {
             });
           };
 
-          if (!shouldInc) {
-            return commitAndReturn(false);
-          }
+          if (!shouldInc) return commitAndReturn(false);
 
-          // reported_count는 NULL일 수 있으니 COALESCE 처리
           const incUserSql = `
             UPDATE damteul_users
             SET reported_count = COALESCE(reported_count, 0) + 1
@@ -760,7 +789,7 @@ exports.updateReportsDetail = (req, res) => {
   });
 };
 
-// 신고정보 삭제
+// ✅ 신고 삭제 (DELETE -> UPDATE soft delete)
 exports.reportDelete = (req, res) => {
   const { id } = req.params;
 
@@ -772,16 +801,18 @@ exports.reportDelete = (req, res) => {
   }
 
   const sql = `
-    DELETE FROM dam_reports
+    UPDATE dam_reports
+    SET is_deleted = 1
     WHERE report_id = ?
+      AND is_deleted = 0
   `;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
-      console.error("삭제 SQL 에러:", err);
+      console.error("신고 소프트삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "신고 삭제 중 서버 오류",
+        message: "신고 삭제(소프트) 중 서버 오류",
       });
     }
 
@@ -794,14 +825,15 @@ exports.reportDelete = (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "신고 정보 삭제 완료",
+      message: "신고 삭제(소프트) 완료",
       id,
     });
   });
 };
 
-
-// 4. 거래정보 가져오기
+// ---------------------------
+// 5) 거래 목록
+// ---------------------------
 exports.trades = (req, res) => {
   const getTradesInfo = `
     SELECT
@@ -820,6 +852,7 @@ exports.trades = (req, res) => {
     JOIN dam_goods_posts g ON g.goods_id = t.goods_id
     JOIN damteul_users u_buyer ON u_buyer.user_id = t.buyer_id
     JOIN damteul_users u_seller ON u_seller.user_id = t.seller_id
+    WHERE t.is_deleted = 0
     ORDER BY t.tx_id DESC;
   `;
 
@@ -829,19 +862,19 @@ exports.trades = (req, res) => {
       return res.status(500).json({
         success: false,
         message: "거래 정보를 불러오는 중 오류가 발생했습니다.",
-        error: err.message, //개발용
+        error: err.message,
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "거래 목록 조회 성공",
-      trades: result, // 결과값
-    })
-  })
+      trades: result,
+    });
+  });
 };
 
-// 거래상세
+// 거래상세 (상세는 is_deleted 조건 안 넣음)
 exports.getTradesDeatail = (req, res) => {
   const { id } = req.params;
 
@@ -872,7 +905,8 @@ exports.getTradesDeatail = (req, res) => {
     JOIN damteul_users u_seller ON u_seller.user_id = t.seller_id
     WHERE t.tx_id = ?
     LIMIT 1
-    `;
+  `;
+
   connection.query(sql, [id], (err, rows) => {
     if (err) {
       console.error("거래 상세 조회 SQL 에러:", err);
@@ -894,9 +928,9 @@ exports.getTradesDeatail = (req, res) => {
       trade: rows[0],
     });
   });
-}
+};
 
-// 거래정보 삭제
+// ✅ 거래 삭제 (DELETE -> UPDATE soft delete)
 exports.tradeDelete = (req, res) => {
   const { id } = req.params;
 
@@ -908,16 +942,18 @@ exports.tradeDelete = (req, res) => {
   }
 
   const sql = `
-    DELETE FROM dam_transactions
+    UPDATE dam_transactions
+    SET is_deleted = 1
     WHERE tx_id = ?
+      AND is_deleted = 0
   `;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
-      console.error("삭제 SQL 에러:", err);
+      console.error("거래 소프트삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "거래 삭제 중 서버 오류",
+        message: "거래 삭제(소프트) 중 서버 오류",
       });
     }
 
@@ -930,48 +966,57 @@ exports.tradeDelete = (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "거래 정보 삭제 완료",
+      message: "거래 삭제(소프트) 완료",
       id,
     });
   });
 };
 
-
-// 6. 커뮤니티 정보가져오기
+// ---------------------------
+// 6) 커뮤니티 목록
+// ---------------------------
 exports.community = (req, res) => {
   const getCommunityInfo = `
     SELECT
-    c.post_id AS id,
-    u.user_nickname AS user,
-    c.title,
-    CASE c.cate
-      WHEN 0 THEN '카테고리 미정'
-      ELSE '기타'
-    END AS category,
-    DATE_FORMAT(c.created_at, '%Y-%m-%d') AS created_at
+      c.post_id AS id,
+      u.user_nickname AS user,
+      c.title,
+      CASE c.cate
+        WHEN 1 THEN '티켓/교환권'
+        WHEN 2 THEN '의류'
+        WHEN 3 THEN '뷰티/미용'
+        WHEN 4 THEN '유아용품'
+        WHEN 5 THEN '도서'
+        WHEN 6 THEN '스포츠/레저'
+        WHEN 7 THEN '디지털기기'
+        ELSE '기타'
+      END AS category,
+      DATE_FORMAT(c.created_at, '%Y-%m-%d') AS created_at
     FROM dam_community_posts c
     JOIN damteul_users u ON u.user_id = c.user_id
+    WHERE c.is_deleted = 0
     ORDER BY c.post_id DESC;
   `;
+
   connection.query(getCommunityInfo, (err, result) => {
     if (err) {
       console.error("community 조회 오류: ", err);
       return res.status(500).json({
         success: false,
         message: "커뮤니티 정보를 불러오는 중 오류가 발생했습니다.",
-        error: err.message, //개발용
+        error: err.message,
       });
     }
 
     return res.status(200).json({
       success: true,
       message: "커뮤니티 목록 조회 성공",
-      community: result, // 결과값
-    })
-  })
-}
+      community: result,
+    });
+  });
+};
 
-// 커뮤니티 상세
+// 커뮤니티 상세 (상세는 is_deleted 조건 안 넣음)
 exports.getCommunityDetail = (req, res) => {
   const { id } = req.params;
 
@@ -988,8 +1033,13 @@ exports.getCommunityDetail = (req, res) => {
       c.title,
       c.content,
       CASE c.cate
-        WHEN 0 THEN '카테고리'
-        WHEN 1 THEN '미정'
+        WHEN 1 THEN '티켓/교환권'
+        WHEN 2 THEN '의류'
+        WHEN 3 THEN '뷰티/미용'
+        WHEN 4 THEN '유아용품'
+        WHEN 5 THEN '도서'
+        WHEN 6 THEN '스포츠/레저'
+        WHEN 7 THEN '디지털기기'
         ELSE '기타'
       END AS category,
       DATE_FORMAT(c.created_at,'%Y-%m-%d') AS created_at
@@ -1020,9 +1070,9 @@ exports.getCommunityDetail = (req, res) => {
       community: rows[0],
     });
   });
-}
+};
 
-// 커뮤니티 삭제
+// ✅ 커뮤니티 삭제 (DELETE -> UPDATE soft delete)
 exports.communityDelete = (req, res) => {
   const { id } = req.params;
 
@@ -1034,16 +1084,18 @@ exports.communityDelete = (req, res) => {
   }
 
   const sql = `
-    DELETE FROM dam_community_posts
+    UPDATE dam_community_posts
+    SET is_deleted = 1
     WHERE post_id = ?
+      AND is_deleted = 0
   `;
 
   connection.query(sql, [id], (err, result) => {
     if (err) {
-      console.error("삭제 SQL 에러:", err);
+      console.error("커뮤니티 소프트삭제 SQL 에러:", err);
       return res.status(500).json({
         success: false,
-        message: "게시물 삭제 중 서버 오류",
+        message: "게시물 삭제(소프트) 중 서버 오류",
       });
     }
 
@@ -1056,7 +1108,7 @@ exports.communityDelete = (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "게시물 정보 삭제 완료",
+      message: "게시물 삭제(소프트) 완료",
       id,
     });
   });

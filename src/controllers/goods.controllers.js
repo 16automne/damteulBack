@@ -177,37 +177,6 @@ exports.findOne = (req, res) => {
 };
 
 
-// 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
-// exports.myList = (req, res) => {
-//   const user_id = 11;  //유저의 ID (임시로 11번 사용 중)
-
-//   // 내가 올린 상품 중 - 
-// 	// 판매중(0)인 상품의 제목, 가격, 첫 번째 이미지 가져오기
-//   const sql = `
-//     SELECT 
-//       p.goods_id as id, 
-//       p.title as name, 
-//       p.price, 
-//       i.image_url as img
-//     FROM dam_goods_posts p
-//     LEFT JOIN (
-//       SELECT goods_id, MIN(image_url) as image_url 
-//       FROM dam_goods_images 
-//       GROUP BY goods_id
-//     ) i ON p.goods_id = i.goods_id
-//     WHERE p.user_id = ? AND p.status = 0
-//     ORDER BY p.created_at DESC
-//   `;
-
-//   db.query(sql, [user_id], (err, results) => {
-//     if (err) {
-//       console.error("❌ 내 상품 목록 조회 실패:", err);
-//       return res.status(500).json({ ok: false, message: "조회 실패" });
-//     }
-//     res.json(results); 
-//   });
-// };
-
 // 좋아요 버튼 클릭 시 토글
 exports.toggleLike =(req, res) => {
 	const {goods_id, user_id} = req.body;
@@ -241,28 +210,37 @@ exports.toggleLike =(req, res) => {
 };
 
 // 상품 삭제
+// 게시글 삭제
 exports.remove = (req, res) => {
-	const { goods_id } = req.params;
+  const { goods_id } = req.params;
+  const sql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
 
-	// 먼저 상품 삭제
-	const deleteSql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
-
-	db.query(deleteSql, [goods_id], (err) => {
-		if (err) {
-			console.error("상품 삭제 에러:", err);
-			return res.status(500).json({ ok: false, message: "삭제 실패" });
-		}
-
-		// 관련 이미지 삭제
-		const deleteImagesSql = `DELETE FROM dam_goods_images WHERE goods_id = ?`;
-		db.query(deleteImagesSql, [goods_id], (imgErr) => {
-			if (imgErr) console.error("이미지 삭제 에러:", imgErr);
-			res.json({ ok: true, message: "상품이 삭제되었습니다." });
-		});
-	});
+  db.query(sql, [goods_id], (err, result) => {
+    if (err) {
+      console.error("삭제 에러:", err);
+      return res.status(500).json({ ok: false, message: "삭제 실패" });
+    }
+    
+    // 영향을 받은 행(row)이 있다면 성공
+    if (result.affectedRows > 0) {
+      res.json({ ok: true, message: "삭제 성공" });
+    } else {
+      res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
+    }
+  });
 };
 
-// 이미지 업로드는 app.js의 전역 업로드 API 사용
-// POST /api/upload/multi/goods (다중 업로드)
-// POST /api/upload/single/goods (단일 업로드)
-// 응답: { success: true, files: [{savedName, url: "/uploads/goods/..."}, ...] }
+// 내 중고 상품 목록 가져오기 (커뮤니티 태그용)
+// exports.myList = (req, res) => {
+//   // 현재 로그인된 유저의 ID를 받아와야 하지만, 
+//   // 우선 에러 해결을 위해 전체 목록을 반환하거나 임시 쿼리를 작성합니다.
+//   const sql = "SELECT goods_id as id, title as name, price FROM dam_goods_posts ORDER BY created_at DESC";
+
+//   db.query(sql, (err, results) => {
+//     if (err) {
+//       console.error("내 상품 조회 실패:", err);
+//       return res.status(500).json({ ok: false, message: "조회 실패" });
+//     }
+//     res.json(results); // 프론트엔드 CommTag.js 등에서 사용됨
+//   });
+// };
