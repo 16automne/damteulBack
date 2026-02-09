@@ -97,37 +97,6 @@ exports.findOne = (req, res) => {
   });
 };
 
-<<<<<<< HEAD
-
-// 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
-exports.myList = (req, res) => {
-  const user_id = 11;  //유저의 ID (임시로 11번 사용 중)
-
-  // 내가 올린 상품 중 - 
-	// 판매중(0)인 상품의 제목, 가격, 첫 번째 이미지 가져오기
-  const sql = `
-    SELECT 
-      p.goods_id as id, 
-      p.title as name, 
-      p.price, 
-      i.image_url as img
-    FROM dam_goods_posts p
-    LEFT JOIN (
-      SELECT goods_id, MIN(image_url) as image_url 
-      FROM dam_goods_images 
-      GROUP BY goods_id
-    ) i ON p.goods_id = i.goods_id
-    WHERE p.user_id = ? AND p.status = 0
-    ORDER BY p.created_at DESC
-  `;
-
-  db.query(sql, [user_id], (err, results) => {
-    if (err) {
-      console.error("❌ 내 상품 목록 조회 실패:", err);
-      return res.status(500).json({ ok: false, message: "조회 실패" });
-    }
-    res.json(results); 
-=======
 // 게시글 삭제
 exports.remove = (req, res) => {
   const { goods_id } = req.params;
@@ -145,6 +114,20 @@ exports.remove = (req, res) => {
     } else {
       res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
     }
->>>>>>> ab8f21d71c01d81ea1a23630fb3749a7eb1d94e8
   });
 };
+
+// 내 중고 상품 목록 가져오기 (커뮤니티 태그용)
+// exports.myList = (req, res) => {
+//   // 현재 로그인된 유저의 ID를 받아와야 하지만, 
+//   // 우선 에러 해결을 위해 전체 목록을 반환하거나 임시 쿼리를 작성합니다.
+//   const sql = "SELECT goods_id as id, title as name, price FROM dam_goods_posts ORDER BY created_at DESC";
+
+//   db.query(sql, (err, results) => {
+//     if (err) {
+//       console.error("내 상품 조회 실패:", err);
+//       return res.status(500).json({ ok: false, message: "조회 실패" });
+//     }
+//     res.json(results); // 프론트엔드 CommTag.js 등에서 사용됨
+//   });
+// };

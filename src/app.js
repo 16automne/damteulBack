@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ✅ 2. 정적 파일 통로 설정
 // "URL이 /uploads/...로 오면, 서버의 uploads/... 폴더에서 파일을 찾아 응답"
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // ✅ 3. Multer 상세 설정 (이미지 전용)
 const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"]);
@@ -28,7 +28,7 @@ const storage = (folder) =>
   multer.diskStorage({
     destination: (req, file, cb) => {
       // app.js 위치가 src 폴더 안이므로 상위 폴더의 uploads를 가리킴
-      const uploadPath = path.join(__dirname, "../uploads", folder);
+      const uploadPath = path.join(process.cwd(), "uploads", folder);
 
       // 폴더 없으면 자동 생성
       if (!fs.existsSync(uploadPath)) {

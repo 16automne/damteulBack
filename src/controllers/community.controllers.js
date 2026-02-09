@@ -2,8 +2,8 @@ const connection = require("../db");
 
 // ✅ 1. 게시글 작성 (commCreate)
 exports.commCreate = (req, res) => {
-    const { user_id, title, content, cate, tags } = req.body;
-    const files = req.files;
+    // 프론트엔드에서 보낸 JSON 데이터를 그대로 받습니다.
+    const { user_id, title, content, cate, image_urls, tags } = req.body;
     
     let parsedTags = [];
     try {
@@ -12,9 +12,10 @@ exports.commCreate = (req, res) => {
         console.error("❌ 태그 JSON 파싱 실패:", e);
     }
 
+    // ⚠️ 중요: user_id || 1 을 삭제하여 프론트에서 보낸 실제 ID가 저장되게 합니다.
     const sqlPost = "INSERT INTO dam_community_posts (user_id, title, content, cate) VALUES (?, ?, ?, ?)";
     
-    connection.query(sqlPost, [user_id || 1, title, content, cate], (err, result) => {
+    connection.query(sqlPost, [user_id, title, content, cate], (err, result) => {
         if (err) {
             console.error("❌ 게시글 저장 SQL 에러:", err.sqlMessage);
             return res.status(500).json({ success: false, message: "게시글 저장 실패" });
@@ -22,15 +23,21 @@ exports.commCreate = (req, res) => {
 
         const post_id = result.insertId;
 
-        if (files && files.length > 0) {
-            files.forEach((file, index) => {
+        // 이미 업로드된 이미지 파일명 배열(image_urls)이 있을 경우 실행
+        if (image_urls && image_urls.length > 0) {
+            image_urls.forEach((filename, index) => {
                 const sqlImg = "INSERT INTO dam_community_images (post_id, image_url) VALUES (?, ?)";
-                connection.query(sqlImg, [post_id, file.filename], (imgErr, imgResult) => {
-                    if (imgErr) return;
+                
+                connection.query(sqlImg, [post_id, filename], (imgErr, imgResult) => {
+                    if (imgErr) {
+                        console.error("❌ 이미지 저장 실패:", imgErr.sqlMessage);
+                        return;
+                    }
 
                     const image_id = imgResult.insertId;
                     const currentFileTags = parsedTags[index]; 
 
+                    // 해당 이미지 인덱스에 매칭되는 태그 정보 저장
                     if (Array.isArray(currentFileTags) && currentFileTags.length > 0) {
                         currentFileTags.forEach(tag => {
                             const sqlTag = "INSERT INTO dam_community_tags (image_id, goods_id, x_pos, y_pos) VALUES (?, ?, ?, ?)";
@@ -74,7 +81,6 @@ exports.commList = (req, res) => {
 exports.commDetail = (req, res) => {
     const { id } = req.params;
 
-    // 1. 게시글 정보 및 작성자 정보 조회
     const sqlPost = `
         SELECT p.*, u.user_nickname, u.level_code, u.profile
         FROM dam_community_posts p
@@ -90,7 +96,6 @@ exports.commDetail = (req, res) => {
         
         if (postResult.length === 0) return res.status(404).json({ message: "글을 찾을 수 없습니다." });
 
-        // 2. 이미지 정보 조회 (태그 테이블이 없을 때를 대비해 서브쿼리나 JOIN 대신 이미지 테이블만 우선 조회)
         const sqlImages = `
             SELECT image_id, image_url 
             FROM dam_community_images 
@@ -103,11 +108,10 @@ exports.commDetail = (req, res) => {
                 return res.status(500).json({ error: "이미지 정보를 불러올 수 없습니다." });
             }
 
-            // 3. 태그 데이터 구조 미리 만들기 (현재 테이블이 없으므로 빈 배열 처리)
-            // 나중에 태그 기능을 쓸 때 이 부분을 다시 활성화하면 됩니다.
+            // 현재 태그 테이블 조회 로직을 통합하지 않았으므로 빈 배열 처리하여 프론트 에러 방지
             const imagesWithTags = imageRows.map(img => ({
                 ...img,
-                tags: [] // 태그 테이블이 없으므로 빈 리스트로 전달하여 프론트 에러 방지
+                tags: [] 
             }));
 
             res.json({
