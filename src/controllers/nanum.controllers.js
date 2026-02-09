@@ -27,6 +27,8 @@ exports.create = (req, res) => {
         imageList = images.split(',');
       }
 
+      console.log("📸 이미지 저장 전 imageList:", imageList);
+
       const imageSql = `
         INSERT INTO dam_nanum_images (nanum_id, image_url) 
         VALUES ?
@@ -40,9 +42,12 @@ exports.create = (req, res) => {
           String(url).trim()
         ]);
 
+      console.log("💾 DB에 저장될 이미지 params:", imageParams);
+
       if (imageParams.length > 0) {
         db.query(imageSql, [imageParams], (imgErr) => {
           if (imgErr) console.error("이미지 저장 에러:", imgErr.sqlMessage);
+          else console.log("✅ 이미지 저장 성공");
           return res.status(200).json({ nanum_id: nanum_id });
         });
       } else {
@@ -75,7 +80,9 @@ exports.findOne = (req, res) => {
         console.error("이미지 조회 에러", imgErr);
         return res.status(500).json({ error: "이미지 조회 실패" });
       }
+      console.log("🖼️  조회된 이미지 데이터:", images);
       data.images = images;
+      console.log("📤 프론트에 응답하는 data.images:", data.images);
       res.status(200).json(data);
     });
   });
@@ -145,25 +152,6 @@ exports.apply = (req, res) => {
   });
 };
 
-// 이미지 다중 업로드
-exports.uploadImages = (req, res) => {
-	if (!req.files || req.files.length === 0) {
-		console.error("❌ 업로드 실패: 파일이 없습니다.");
-		return res.status(400).json({ ok: false, message: "파일이 없습니다." });
-	}
-
-	console.log("✅ 업로드 성공 - 파일 개수:", req.files.length);
-	console.log("📁 저장된 파일들 :", req.files.map(f => f.filename));
-
-	const files = req.files.map((f) => ({
-		savedName: f.filename,
-		url: `/uploads/nanum/${f.filename}`,
-	}));
-
-	console.log("🔗 반환될 URL들:", files);
-
-	res.json({
-		ok: true,
-		files: files
-	});
-};
+// 이미지 업로드는 app.js의 전역 업로드 API 사용
+// POST /api/upload/multi/nanum (다중 업로드)
+// 응답: { success: true, files: [{savedName, url: "/uploads/nanum/..."}, ...] }

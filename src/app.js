@@ -69,7 +69,7 @@ const upload = (folder) => multer({
 
 
 // 들어올수 있는 url 한정 시키기
-const ALLOWED = ["community", "goods", "profile", "event"];
+const ALLOWED = ["community", "goods", "profile", "event", "nanum"];
 
 
 // url 한정 함수

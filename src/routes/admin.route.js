@@ -38,8 +38,8 @@ router.get("/events", getAdminEvents);
 // 공지사항 목록
 router.get("/notices", getAdminNotices);
 
-router.get("/notice/:id", getNoticeDetail);
-router.put("/notice/:id", updateNotice);  
+// router.get("/notice/:id", getNoticeDetail);
+// router.put("/notice/:id", updateNotice); 
 
 // 이벤트 상세 가져오기
 router.get("/event/:id", getEventDetail);

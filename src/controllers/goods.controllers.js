@@ -54,7 +54,9 @@ exports.create = (req, res) => {
     }
     const goods_id = result.insertId;
 
-    // ✅ 이미지 처리 로직 수정
+    // ✅ 이미지 처리 로직
+    // 이미지 URL은 프론트에서 /api/upload/multi/goods 또는 /api/upload/single/goods 로 미리 업로드 후
+    // 응답받은 `/uploads/goods/filename` 형식의 URL을 images 배열로 전송받음
     if (images && (Array.isArray(images) || (typeof images === 'string' && images.length > 0))) {
       let imageList = [];
       
@@ -176,35 +178,35 @@ exports.findOne = (req, res) => {
 
 
 // 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
-exports.myList = (req, res) => {
-  const user_id = 11;  //유저의 ID (임시로 11번 사용 중)
+// exports.myList = (req, res) => {
+//   const user_id = 11;  //유저의 ID (임시로 11번 사용 중)
 
-  // 내가 올린 상품 중 - 
-	// 판매중(0)인 상품의 제목, 가격, 첫 번째 이미지 가져오기
-  const sql = `
-    SELECT 
-      p.goods_id as id, 
-      p.title as name, 
-      p.price, 
-      i.image_url as img
-    FROM dam_goods_posts p
-    LEFT JOIN (
-      SELECT goods_id, MIN(image_url) as image_url 
-      FROM dam_goods_images 
-      GROUP BY goods_id
-    ) i ON p.goods_id = i.goods_id
-    WHERE p.user_id = ? AND p.status = 0
-    ORDER BY p.created_at DESC
-  `;
+//   // 내가 올린 상품 중 - 
+// 	// 판매중(0)인 상품의 제목, 가격, 첫 번째 이미지 가져오기
+//   const sql = `
+//     SELECT 
+//       p.goods_id as id, 
+//       p.title as name, 
+//       p.price, 
+//       i.image_url as img
+//     FROM dam_goods_posts p
+//     LEFT JOIN (
+//       SELECT goods_id, MIN(image_url) as image_url 
+//       FROM dam_goods_images 
+//       GROUP BY goods_id
+//     ) i ON p.goods_id = i.goods_id
+//     WHERE p.user_id = ? AND p.status = 0
+//     ORDER BY p.created_at DESC
+//   `;
 
-  db.query(sql, [user_id], (err, results) => {
-    if (err) {
-      console.error("❌ 내 상품 목록 조회 실패:", err);
-      return res.status(500).json({ ok: false, message: "조회 실패" });
-    }
-    res.json(results); 
-  });
-};
+//   db.query(sql, [user_id], (err, results) => {
+//     if (err) {
+//       console.error("❌ 내 상품 목록 조회 실패:", err);
+//       return res.status(500).json({ ok: false, message: "조회 실패" });
+//     }
+//     res.json(results); 
+//   });
+// };
 
 // 좋아요 버튼 클릭 시 토글
 exports.toggleLike =(req, res) => {
@@ -238,25 +240,29 @@ exports.toggleLike =(req, res) => {
 	});
 };
 
-// 이미지 다중 업로드
-exports.uploadImages = (req, res) => {
-	if (!req.files || req.files.length === 0) {
-		console.error("❌ 업로드 실패: 파일이 없습니다.");
-		return res.status(400).json({ ok: false, message: "파일이 없습니다." });
-	}
+// 상품 삭제
+exports.remove = (req, res) => {
+	const { goods_id } = req.params;
 
-	console.log("✅ 업로드 성공 - 파일 개수:", req.files.length);
-	console.log("📁 저장된 파일들 :", req.files.map(f => f.filename));
+	// 먼저 상품 삭제
+	const deleteSql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
 
-	const files = req.files.map((f) => ({
-		savedName: f.filename,
-		url: `/uploads/goods/${f.filename}`,
-	}));
+	db.query(deleteSql, [goods_id], (err) => {
+		if (err) {
+			console.error("상품 삭제 에러:", err);
+			return res.status(500).json({ ok: false, message: "삭제 실패" });
+		}
 
-	console.log("🔗 반환될 URL들:", files);
-
-	res.json({
-		ok: true,
-		files: files
+		// 관련 이미지 삭제
+		const deleteImagesSql = `DELETE FROM dam_goods_images WHERE goods_id = ?`;
+		db.query(deleteImagesSql, [goods_id], (imgErr) => {
+			if (imgErr) console.error("이미지 삭제 에러:", imgErr);
+			res.json({ ok: true, message: "상품이 삭제되었습니다." });
+		});
 	});
 };
+
+// 이미지 업로드는 app.js의 전역 업로드 API 사용
+// POST /api/upload/multi/goods (다중 업로드)
+// POST /api/upload/single/goods (단일 업로드)
+// 응답: { success: true, files: [{savedName, url: "/uploads/goods/..."}, ...] }
