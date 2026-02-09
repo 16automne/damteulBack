@@ -62,11 +62,12 @@ exports.create = (req, res) => {
 // 조회하기
 exports.findOne = (req, res) => {
   const { nanum_id } = req.params;
-  const sql = "SELECT dam_nanum_posts.*, damteul_users.user_nickname, damteul_users.level_code FROM dam_nanum_posts JOIN damteul_users ON dam_nanum_posts.user_id = damteul_users.user_id WHERE dam_nanum_posts.nanum_id =?";
+  const sql = "SELECT dam_nanum_posts.*, damteul_users.user_nickname, damteul_users.level_code FROM dam_nanum_posts JOIN damteul_users ON dam_nanum_posts.user_id = damteul_users.user_id WHERE dam_nanum_posts.nanum_id =? AND dam_nanum_posts.is_deleted = 0";
 
   db.query(sql, [nanum_id], (err, result) => {
     if (err) return res.status(500).json(err);
-    
+    if (!result || result.length === 0) return res.status(404).json({ error: "게시글을 찾을 수 없습니다." });
+
     const data = result[0];
 
     // 이미지 따로 조회
@@ -80,9 +81,7 @@ exports.findOne = (req, res) => {
         console.error("이미지 조회 에러", imgErr);
         return res.status(500).json({ error: "이미지 조회 실패" });
       }
-      console.log("🖼️  조회된 이미지 데이터:", images);
       data.images = images;
-      console.log("📤 프론트에 응답하는 data.images:", data.images);
       res.status(200).json(data);
     });
   });
@@ -96,6 +95,7 @@ exports.findAll = (req, res) => {
       dam_nanum_posts.*,
       (SELECT image_url FROM dam_nanum_images WHERE dam_nanum_images.nanum_id = dam_nanum_posts.nanum_id LIMIT 1) AS image
     FROM dam_nanum_posts 
+    WHERE dam_nanum_posts.is_deleted = 0
     ORDER BY created_at DESC`;
 
   db.query(sql, (err, result) => {
@@ -105,6 +105,23 @@ exports.findAll = (req, res) => {
     }
     // DB결과 반환
     res.status(200).json(result);
+  });
+};
+
+// 소프트 삭제: is_deleted = 1
+exports.remove = (req, res) => {
+  const { nanum_id } = req.params;
+  const sql = `UPDATE dam_nanum_posts SET is_deleted = 1 WHERE nanum_id = ?`;
+
+  db.query(sql, [nanum_id], (err, result) => {
+    if (err) {
+      console.error("나눔 삭제(소프트) 에러:", err);
+      return res.status(500).json({ ok: false, message: "삭제 실패" });
+    }
+    if (result.affectedRows > 0) {
+      return res.status(200).json({ ok: true, message: "삭제(소프트) 완료", id: nanum_id });
+    }
+    return res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
   });
 };
 

@@ -19,4 +19,7 @@ router.get("/:nanum_id", nanumCtrl.findOne);
 // 데이터 가져오기
 router.get("/", nanumCtrl.findAll);
 
+// 글 삭제(소프트 삭제)
+router.delete("/:nanum_id", nanumCtrl.remove);
+
 module.exports = router;

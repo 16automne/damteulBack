@@ -98,29 +98,30 @@ exports.create = (req, res) => {
 
 // 작성한 게시글 게시하기
 exports.post = (req, res) => {
-	const sql = `
+  const sql = `
     SELECT 
       dam_goods_posts.*, 
       (SELECT image_url FROM dam_goods_images WHERE dam_goods_images.goods_id = dam_goods_posts.goods_id LIMIT 1) AS image,
       (SELECT COUNT(*) FROM dam_goods_likes WHERE dam_goods_likes.goods_id = dam_goods_posts.goods_id AND dam_goods_likes.status = 1) AS like_count 
     FROM dam_goods_posts 
+    WHERE dam_goods_posts.is_deleted = 0
     ORDER BY dam_goods_posts.created_at DESC
   `;
 
-	db.query(sql, (err, results)=>{
-		if(err){
-			return res.status(500).json({ok:false, message:"조회 실패"});
-		}
-		res.json({ok:true, list:results});
-	});
-};
+  db.query(sql, (err, results)=>{
+    if(err){
+      return res.status(500).json({ok:false, message:"조회 실패"});
+    }
+    res.json({ok:true, list:results});
+  });
 
+};
 // GoodsDetail 상세페이지에 띄울 정보 조회하기
 exports.findOne = (req, res) => {
   const { goods_id } = req.params;
 	const {user_id} = req.query;
   // damteul_users 테이블에서 닉네임만 가져와 가상테이블로 합침
-	const sql =  `
+  const sql =  `
     SELECT 
       dam_goods_posts.*, 
       damteul_users.user_nickname, 
@@ -129,7 +130,7 @@ exports.findOne = (req, res) => {
       (SELECT status FROM dam_goods_likes WHERE goods_id = dam_goods_posts.goods_id AND user_id = ?) AS like_status
     FROM dam_goods_posts 
     LEFT JOIN damteul_users ON dam_goods_posts.user_id = damteul_users.user_id 
-    WHERE dam_goods_posts.goods_id = ?
+    WHERE dam_goods_posts.goods_id = ? AND dam_goods_posts.is_deleted = 0
   `;
 
   db.query(sql, [user_id || null, goods_id], (err, result) => {
@@ -213,17 +214,16 @@ exports.toggleLike =(req, res) => {
 // 게시글 삭제
 exports.remove = (req, res) => {
   const { goods_id } = req.params;
-  const sql = `DELETE FROM dam_goods_posts WHERE goods_id = ?`;
+  const sql = `UPDATE dam_goods_posts SET is_deleted = 1 WHERE goods_id = ?`;
 
   db.query(sql, [goods_id], (err, result) => {
     if (err) {
-      console.error("삭제 에러:", err);
+      console.error("삭제(소프트) 에러:", err);
       return res.status(500).json({ ok: false, message: "삭제 실패" });
     }
-    
-    // 영향을 받은 행(row)이 있다면 성공
+
     if (result.affectedRows > 0) {
-      res.json({ ok: true, message: "삭제 성공" });
+      res.json({ ok: true, message: "삭제(소프트) 완료", id: goods_id });
     } else {
       res.status(404).json({ ok: false, message: "게시글을 찾을 수 없습니다." });
     }
