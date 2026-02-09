@@ -10,6 +10,8 @@ const upload = multer({ dest: "uploads/" }); // 이미지 열기
 router.post("/", upload.array("fileUpload",10), goodsCtrl.create);
 // 글 목록 가져오기
 router.get("/",goodsCtrl.post);
+// 내 중고 상품 목록 가져오기 - 커뮤니티 태그용
+router.get("/myList", goodsCtrl.myList); 
 // GoodsDetail에 띄울 상세페이지 정보 조회하기
 router.get("/:goods_id", goodsCtrl.findOne);
 
