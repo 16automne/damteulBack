@@ -76,12 +76,21 @@ exports.register = (req, res) => {
               message: "회원가입 저장 중 오류가 발생했습니다.",
             });
           }
-          const userToken = userJwt.sign({user_nickname:user_nickname}, SECRET_KEY,{
-            expiresIn:'1h'
-          });
+
+          const user_id = result2.insertId;
+
+          const userToken = userJwt.sign(
+            {
+              user_id,
+              user_nickname,
+            },
+            SECRET_KEY,
+            { expiresIn: "1h" }
+          );
+
           return res.status(201).json({
             ok: true,
-            userToken
+            userToken,
           });
         }
       );
