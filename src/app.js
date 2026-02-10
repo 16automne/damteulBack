@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const path = require("path");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
@@ -15,6 +16,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ✅ 사진 통로 설정 (라우터 연결보다 위에 있는 것이 좋습니다)
+// 브라우저에서 http://localhost:9070/uploads/community/파일명 으로 접근 가능하게 함
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // ✅ 2. 정적 파일 통로 설정
 // "URL이 /uploads/...로 오면, 서버의 uploads/... 폴더에서 파일을 찾아 응답"
