@@ -1,11 +1,12 @@
-const connection = require("../db");
+const pool = require("../db");
 
 /** =========================
- *  Promise 래퍼
+ * Promise 래퍼 (pool 전용)
+ * - 트랜잭션 필요 없는 조회용
  * ========================= */
-function q(sql, params = []) {
+function qPool(sql, params = []) {
   return new Promise((resolve, reject) => {
-    connection.query(sql, params, (err, rows) => {
+    pool.query(sql, params, (err, rows) => {
       if (err) return reject(err);
       resolve(rows);
     });
@@ -13,10 +14,23 @@ function q(sql, params = []) {
 }
 
 /** =========================
- *  goods_id -> seller_id 조회
+ * Promise 래퍼 (conn 전용)
+ * - 트랜잭션 내부에서만 사용
+ * ========================= */
+function qConn(conn, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    conn.query(sql, params, (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows);
+    });
+  });
+}
+
+/** =========================
+ * goods_id -> seller_id 조회 (pool로 OK)
  * ========================= */
 async function getSellerIdByGoodsId(goodsId) {
-  const rows = await q(
+  const rows = await qPool(
     `
     SELECT user_id AS seller_id
     FROM dam_goods_posts
@@ -29,10 +43,10 @@ async function getSellerIdByGoodsId(goodsId) {
 }
 
 /** =========================
- *  (읽음처리용) 최신 메시지 id
+ * (읽음처리용) 최신 메시지 id (pool로 OK)
  * ========================= */
 async function getLatestMessageId(chat_id) {
-  const rows = await q(
+  const rows = await qPool(
     `
     SELECT IFNULL(MAX(message_id), 0) AS maxId
     FROM dam_chat_messages
@@ -44,14 +58,13 @@ async function getLatestMessageId(chat_id) {
 }
 
 /** =========================
- *  읽음 처리: last_read_message_id + last_read_at 갱신
- *  - FK 때문에 message가 없으면 NULL 저장
+ * 읽음 처리 (pool로 OK)
  * ========================= */
 async function markReadToLatest(chat_id, user_id) {
   const latestId = await getLatestMessageId(chat_id);
   const newLastRead = latestId > 0 ? latestId : null;
 
-  await q(
+  await qPool(
     `
     INSERT INTO dam_chat_room_user_state
       (chat_id, user_id, last_read_message_id, last_read_at, created_at)
@@ -68,11 +81,11 @@ async function markReadToLatest(chat_id, user_id) {
     [chat_id, user_id, newLastRead]
   );
 
-  return newLastRead; // null or number
+  return newLastRead;
 }
 
 /** =========================
- * ✅ 1) (방 생성 없이) goods_id + buyer_id 로 방 조회
+ * 1) 방 조회
  * GET /api/chat/room?goods_id=17&buyer_id=29
  * ========================= */
 exports.getRoomByGoodsAndBuyer = async (req, res) => {
@@ -95,13 +108,15 @@ exports.getRoomByGoodsAndBuyer = async (req, res) => {
       });
     }
 
-    const roomSql = `
+    const rows = await qPool(
+      `
       SELECT chat_id
       FROM dam_chat_rooms
       WHERE goods_id = ? AND buyer_id = ? AND seller_id = ?
       LIMIT 1
-    `;
-    const rows = await q(roomSql, [goods_id, buyer_id, seller_id]);
+      `,
+      [goods_id, buyer_id, seller_id]
+    );
 
     const chat_id = rows?.[0]?.chat_id ?? null;
 
@@ -117,7 +132,7 @@ exports.getRoomByGoodsAndBuyer = async (req, res) => {
 };
 
 /** =========================
- * ✅ 2) chat_id 메시지 목록 조회 (+nickname) + 자동 읽음처리
+ * 2) 메시지 조회 + 자동 읽음처리
  * GET /api/chat/messages?chat_id=123&user_id=29
  * ========================= */
 exports.getMessagesByChatId = async (req, res) => {
@@ -132,7 +147,8 @@ exports.getMessagesByChatId = async (req, res) => {
   }
 
   try {
-    const sql = `
+    const rows = await qPool(
+      `
       SELECT
         m.message_id AS id,
         m.user_id,
@@ -143,16 +159,16 @@ exports.getMessagesByChatId = async (req, res) => {
       JOIN damteul_users u ON u.user_id = m.user_id
       WHERE m.chat_id = ?
       ORDER BY m.message_id ASC
-    `;
-    const rows = await q(sql, [chat_id]);
+      `,
+      [chat_id]
+    );
 
-    // ✅ 자동 읽음 처리
     const lastReadMessageId = await markReadToLatest(chat_id, user_id);
 
     return res.json({
       success: true,
       messages: rows || [],
-      lastReadMessageId, // null or number
+      lastReadMessageId,
     });
   } catch (err) {
     console.error("getMessagesByChatId error:", err);
@@ -161,7 +177,7 @@ exports.getMessagesByChatId = async (req, res) => {
 };
 
 /** =========================
- * ✅ 3) 첫 메시지: 방 생성 + 첫 메시지 저장
+ * 3) 첫 메시지: 방 생성 + 첫 메시지 저장 (트랜잭션)
  * POST /api/chat/send-first
  * body: { goods_id, buyer_id, content }
  * ========================= */
@@ -175,61 +191,82 @@ exports.sendFirstMessage = async (req, res) => {
     });
   }
 
+  const conn = await new Promise((resolve, reject) => {
+    pool.getConnection((err, c) => (err ? reject(err) : resolve(c)));
+  });
+
   try {
     const seller_id = await getSellerIdByGoodsId(goods_id);
     if (!seller_id) {
+      conn.release();
       return res.status(404).json({
         success: false,
         message: "해당 goods_id의 판매자를 찾을 수 없습니다.",
       });
     }
 
-    await q("START TRANSACTION");
+    await qConn(conn, "START TRANSACTION");
 
-    // 방 upsert (UNIQUE KEY (goods_id, buyer_id, seller_id) 필요)
-    const roomUpsertSql = `
+    // ✅ 방 upsert (UNIQUE KEY(goods_id,buyer_id,seller_id) 필요)
+    const roomResult = await qConn(
+      conn,
+      `
       INSERT INTO dam_chat_rooms (goods_id, buyer_id, seller_id, created_at)
       VALUES (?, ?, ?, NOW())
       ON DUPLICATE KEY UPDATE chat_id = LAST_INSERT_ID(chat_id)
-    `;
-    const roomResult = await q(roomUpsertSql, [goods_id, buyer_id, seller_id]);
-    const chat_id = roomResult.insertId;
+      `,
+      [goods_id, buyer_id, seller_id]
+    );
 
-    // user_state 준비(최초 1회만)
-    const userStateSql = `
+    // ✅ 같은 conn에서 실행되므로 insertId가 안전
+    const chat_id = Number(roomResult.insertId);
+
+    // user_state 최초 생성(없으면 생성)
+    await qConn(
+      conn,
+      `
       INSERT IGNORE INTO dam_chat_room_user_state (chat_id, user_id, created_at)
       VALUES (?, ?, NOW()), (?, ?, NOW())
-    `;
-    await q(userStateSql, [chat_id, buyer_id, chat_id, seller_id]);
+      `,
+      [chat_id, buyer_id, chat_id, seller_id]
+    );
 
     // 메시지 저장
-    const insertMsgSql = `
+    const msgResult = await qConn(
+      conn,
+      `
       INSERT INTO dam_chat_messages (chat_id, user_id, content, created_at)
       VALUES (?, ?, ?, NOW())
-    `;
-    const msgResult = await q(insertMsgSql, [chat_id, buyer_id, content.trim()]);
-    const message_id = msgResult.insertId;
+      `,
+      [chat_id, buyer_id, content.trim()]
+    );
+    const message_id = Number(msgResult.insertId);
 
-    // created_at 조회
-    const timeRows = await q(
+    // created_at 조회 (굳이 다시 SELECT 안 해도 되지만 유지)
+    const timeRows = await qConn(
+      conn,
       `SELECT created_at AS createdAt FROM dam_chat_messages WHERE message_id = ? LIMIT 1`,
       [message_id]
     );
     const createdAt = timeRows?.[0]?.createdAt ?? null;
 
     // last_message 갱신
-    const updateRoomLastSql = `
+    await qConn(
+      conn,
+      `
       UPDATE dam_chat_rooms
       SET last_message_id = ?, last_message_at = NOW()
       WHERE chat_id = ?
-    `;
-    await q(updateRoomLastSql, [message_id, chat_id]);
+      `,
+      [message_id, chat_id]
+    );
 
-    // ✅ 보낸 사람(buyer)은 방금 보낸 메시지까지 읽은 상태로 처리
-    // (FK 때문에 last_read_message_id는 message_id로 저장)
-    await q(
+    // 보낸 사람(buyer)은 읽음 처리
+    await qConn(
+      conn,
       `
-      INSERT INTO dam_chat_room_user_state (chat_id, user_id, last_read_message_id, last_read_at, created_at)
+      INSERT INTO dam_chat_room_user_state
+        (chat_id, user_id, last_read_message_id, last_read_at, created_at)
       VALUES (?, ?, ?, NOW(), NOW())
       ON DUPLICATE KEY UPDATE
         last_read_message_id = GREATEST(IFNULL(last_read_message_id, 0), VALUES(last_read_message_id)),
@@ -238,7 +275,8 @@ exports.sendFirstMessage = async (req, res) => {
       [chat_id, buyer_id, message_id]
     );
 
-    await q("COMMIT");
+    await qConn(conn, "COMMIT");
+    conn.release();
 
     return res.json({
       success: true,
@@ -250,15 +288,17 @@ exports.sendFirstMessage = async (req, res) => {
     });
   } catch (err) {
     try {
-      await q("ROLLBACK");
+      await qConn(conn, "ROLLBACK");
     } catch (e) {}
+    conn.release();
+
     console.error("sendFirstMessage error:", err);
     return res.status(500).json({ success: false, message: "서버 오류" });
   }
 };
 
 /** =========================
- * ✅ 4) 두번째 메시지부터: chat_id로 메시지만 저장
+ * 4) 두번째 메시지부터: chat_id로 메시지 저장 (트랜잭션)
  * POST /api/chat/send
  * body: { chat_id, user_id, content }
  * ========================= */
@@ -272,36 +312,45 @@ exports.sendMessage = async (req, res) => {
     });
   }
 
-  try {
-    await q("START TRANSACTION");
+  const conn = await new Promise((resolve, reject) => {
+    pool.getConnection((err, c) => (err ? reject(err) : resolve(c)));
+  });
 
-    // 메시지 저장
-    const insertMsgSql = `
+  try {
+    await qConn(conn, "START TRANSACTION");
+
+    const msgResult = await qConn(
+      conn,
+      `
       INSERT INTO dam_chat_messages (chat_id, user_id, content, created_at)
       VALUES (?, ?, ?, NOW())
-    `;
-    const msgResult = await q(insertMsgSql, [chat_id, user_id, content.trim()]);
-    const message_id = msgResult.insertId;
+      `,
+      [chat_id, user_id, content.trim()]
+    );
+    const message_id = Number(msgResult.insertId);
 
-    // created_at 조회
-    const timeRows = await q(
+    const timeRows = await qConn(
+      conn,
       `SELECT created_at AS createdAt FROM dam_chat_messages WHERE message_id = ? LIMIT 1`,
       [message_id]
     );
     const createdAt = timeRows?.[0]?.createdAt ?? null;
 
-    // last_message 갱신
-    const updateRoomLastSql = `
+    await qConn(
+      conn,
+      `
       UPDATE dam_chat_rooms
       SET last_message_id = ?, last_message_at = NOW()
       WHERE chat_id = ?
-    `;
-    await q(updateRoomLastSql, [message_id, chat_id]);
+      `,
+      [message_id, chat_id]
+    );
 
-    // ✅ 보낸 사람은 방금 보낸 메시지까지 읽은 상태
-    await q(
+    await qConn(
+      conn,
       `
-      INSERT INTO dam_chat_room_user_state (chat_id, user_id, last_read_message_id, last_read_at, created_at)
+      INSERT INTO dam_chat_room_user_state
+        (chat_id, user_id, last_read_message_id, last_read_at, created_at)
       VALUES (?, ?, ?, NOW(), NOW())
       ON DUPLICATE KEY UPDATE
         last_read_message_id = GREATEST(IFNULL(last_read_message_id, 0), VALUES(last_read_message_id)),
@@ -310,7 +359,8 @@ exports.sendMessage = async (req, res) => {
       [chat_id, user_id, message_id]
     );
 
-    await q("COMMIT");
+    await qConn(conn, "COMMIT");
+    conn.release();
 
     return res.json({
       success: true,
@@ -321,15 +371,17 @@ exports.sendMessage = async (req, res) => {
     });
   } catch (err) {
     try {
-      await q("ROLLBACK");
+      await qConn(conn, "ROLLBACK");
     } catch (e) {}
+    conn.release();
+
     console.error("sendMessage error:", err);
     return res.status(500).json({ success: false, message: "서버 오류" });
   }
 };
 
 /** =========================
- * ✅ 5) 내 채팅방 목록 + 상대정보 + 마지막대화 + unreadCount
+ * 5) 내 채팅방 목록
  * GET /api/chat/rooms?user_id=29
  * ========================= */
 exports.getMyChatRooms = async (req, res) => {
@@ -339,7 +391,8 @@ exports.getMyChatRooms = async (req, res) => {
   }
 
   try {
-    const sql = `
+    const rows = await qPool(
+      `
       SELECT
         r.chat_id,
         r.goods_id,
@@ -348,7 +401,6 @@ exports.getMyChatRooms = async (req, res) => {
         r.last_message_at AS lastMessageAt,
         lm.content AS lastText,
 
-        -- 상대방(내가 buyer면 seller가 상대, 내가 seller면 buyer가 상대)
         CASE WHEN r.buyer_id = ? THEN u_s.user_id ELSE u_b.user_id END AS otherUserId,
         CASE WHEN r.buyer_id = ? THEN u_s.user_nickname ELSE u_b.user_nickname END AS otherNickname,
         CASE WHEN r.buyer_id = ? THEN u_s.profile ELSE u_b.profile END AS otherProfile,
@@ -376,9 +428,9 @@ exports.getMyChatRooms = async (req, res) => {
       WHERE (r.buyer_id = ? OR r.seller_id = ?)
         AND (us.left_at IS NULL OR us.user_id IS NULL)
       ORDER BY r.last_message_at DESC, r.chat_id DESC
-    `;
-
-    const rows = await q(sql, [user_id, user_id, user_id, user_id, user_id, user_id, user_id]);
+      `,
+      [user_id, user_id, user_id, user_id, user_id, user_id, user_id]
+    );
 
     return res.json({ success: true, rooms: rows || [] });
   } catch (err) {
@@ -388,7 +440,7 @@ exports.getMyChatRooms = async (req, res) => {
 };
 
 /** =========================
- * ✅ 6) 읽음 처리 전용(옵션)
+ * 6) 읽음 처리
  * POST /api/chat/mark-read
  * body: { chat_id, user_id }
  * ========================= */
