@@ -126,6 +126,7 @@ exports.findOne = (req, res) => {
       dam_goods_posts.*, 
       damteul_users.user_nickname, 
       damteul_users.profile,
+      damteul_users.level_code,
       (SELECT COUNT(*) FROM dam_goods_likes WHERE goods_id = dam_goods_posts.goods_id AND status=1) AS like_count,
       (SELECT status FROM dam_goods_likes WHERE goods_id = dam_goods_posts.goods_id AND user_id = ?) AS like_status
     FROM dam_goods_posts 

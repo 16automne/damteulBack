@@ -5,7 +5,7 @@ exports.create = (req, res) => {
 
   const sql = `
     INSERT INTO dam_nanum_posts (user_id, title, content, status, end_nanum) 
-    VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 21 HOUR))
+    VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))
   `;
 
   db.query(sql, [user_id, title, content, status], (err, result) => {
